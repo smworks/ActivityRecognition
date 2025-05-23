@@ -16,19 +16,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import android.content.SharedPreferences
 import androidx.annotation.RequiresPermission
 
 class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
-    private val _currentActivity = MutableStateFlow("Unknown")
-    private val currentActivity: StateFlow<String> = _currentActivity.asStateFlow()
-
-    private val _activityEvents = MutableStateFlow<List<String>>(emptyList())
-    private val activityEvents: StateFlow<List<String>> = _activityEvents.asStateFlow()
+    private var _currentActivity by mutableStateOf("Unknown")
+    private var _activityEvents by mutableStateOf<List<String>>(emptyList())
 
     @SuppressLint("MissingPermission")
     private val requestPermissionLauncher = registerForActivityResult(
@@ -73,8 +66,8 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
                     color = MaterialTheme.colorScheme.background
                 ) {
                     ActivityTrackerScreen(
-                        currentActivity = currentActivity.collectAsStateWithLifecycle().value,
-                        activityEvents = activityEvents.collectAsStateWithLifecycle().value
+                        currentActivity = _currentActivity,
+                        activityEvents = _activityEvents
                     )
                 }
             }
@@ -91,8 +84,8 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
     private fun loadSavedEvents() {
         FileLogger.d("Loading saved events")
         val events = sharedPreferences.getString("events", "")?.split("\n") ?: emptyList()
-        _activityEvents.value = events
-        _currentActivity.value = sharedPreferences.getString("current_activity", "Unknown") ?: "Unknown"
+        _activityEvents = events
+        _currentActivity = sharedPreferences.getString("current_activity", "Unknown") ?: "Unknown"
         FileLogger.d("Loaded ${events.size} events")
     }
 
