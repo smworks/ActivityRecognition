@@ -53,7 +53,7 @@ object FileLogger {
         Log.w(LOGCAT_TAG, message)
         logToFile(message)
     }
-    
+
     fun w(message: String, throwable: Throwable?) {
         val fullMessage = throwable?.let { "$message: ${it.localizedMessage}" } ?: message
         Log.w(LOGCAT_TAG, fullMessage, throwable)
@@ -69,4 +69,24 @@ object FileLogger {
         Log.v(LOGCAT_TAG, message)
         logToFile(message)
     }
-} 
+
+    fun getLog(): String? {
+        return applicationContext?.let { ctx ->
+            val logFile = File(ctx.filesDir, LOG_FILE_NAME)
+            try {
+                if (logFile.exists()) {
+                    return@let logFile.readText()
+                } else {
+                    Log.w(LOGCAT_TAG, "Log file does not exist.")
+                    return@let null
+                }
+            } catch (e: IOException) {
+                Log.e(LOGCAT_TAG, "Error reading log file", e)
+                return@let null
+            }
+        } ?: run {
+            Log.e(LOGCAT_TAG, "Context not initialized. Call FileLogger.init(context) first.")
+            null
+        }
+    }
+}

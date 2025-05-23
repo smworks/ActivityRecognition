@@ -18,6 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import android.content.SharedPreferences
 import androidx.annotation.RequiresPermission
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.unit.sp
 
 class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
     private var _currentActivity by mutableStateOf("Unknown")
@@ -45,12 +48,12 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
 
         when {
             ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACTIVITY_RECOGNITION
+                this, Manifest.permission.ACTIVITY_RECOGNITION
             ) == PackageManager.PERMISSION_GRANTED -> {
                 FileLogger.d("Permission already granted")
                 startActivityRecognition()
             }
+
             else -> {
                 FileLogger.d("Requesting permission")
                 requestPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
@@ -62,12 +65,13 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
         setContent {
             MaterialTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize().systemBarsPadding(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .systemBarsPadding(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     ActivityTrackerScreen(
-                        currentActivity = _currentActivity,
-                        activityEvents = _activityEvents
+                        currentActivity = _currentActivity, activityEvents = _activityEvents
                     )
                 }
             }
@@ -110,8 +114,7 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
 
 @Composable
 fun ActivityTrackerScreen(
-    currentActivity: String,
-    activityEvents: List<String>
+    currentActivity: String, activityEvents: List<String>
 ) {
     Column(
         modifier = Modifier
@@ -130,36 +133,52 @@ fun ActivityTrackerScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Current Activity",
-                    style = MaterialTheme.typography.titleMedium
+                    text = "Current Activity", style = MaterialTheme.typography.titleMedium
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = currentActivity,
-                    style = MaterialTheme.typography.headlineMedium
+                    text = currentActivity, style = MaterialTheme.typography.headlineMedium
                 )
             }
         }
 
-        // Activity History
-        Text(
-            text = "Activity History",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
-
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(activityEvents) { event ->
-                Card(
-                    modifier = Modifier.fillMaxWidth()
+        var index by remember { mutableIntStateOf(0) }
+        val tabNames = listOf("Activity History", "Logs")
+        TabRow(selectedTabIndex = index, modifier = Modifier.fillMaxWidth()) {
+            tabNames.forEachIndexed { i, name ->
+                Tab(text = { Text(name) }, selected = index == i, onClick = { index = i })
+            }
+        }
+        when (index) {
+            0 -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = event,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    items(activityEvents) { event ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = event,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            1 -> {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = FileLogger.getLog() ?: "No log",
+                            modifier = Modifier.padding(16.dp),
+                            fontSize = 8.sp
+                        )
+                    }
                 }
             }
         }
