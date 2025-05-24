@@ -31,7 +31,6 @@ class ActivityRecognitionProvider {
         addActivity(activityTransitionList, DetectedActivity.RUNNING)
         addActivity(activityTransitionList, DetectedActivity.ON_FOOT)
         addActivity(activityTransitionList, DetectedActivity.ON_BICYCLE)
-        addActivity(activityTransitionList, DetectedActivity.WALKING)
         addActivity(activityTransitionList, DetectedActivity.STILL)
         addActivity(activityTransitionList, DetectedActivity.IN_VEHICLE)
 
