@@ -23,70 +23,18 @@ class ActivityRecognitionProvider {
             context,
             0,
             intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_MUTABLE
         )
 
         val activityTransitionList = ArrayList<ActivityTransition>()
-        activityTransitionList.add(
-            ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.WALKING)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
-                .build()
-        )
-        activityTransitionList.add(
-            ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.WALKING)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build()
-        )
-        activityTransitionList.add(
-            ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.STILL)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
-                .build()
-        )
-        activityTransitionList.add(
-            ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.STILL)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build()
-        )
-        activityTransitionList.add(
-            ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.IN_VEHICLE)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
-                .build()
-        )
-        activityTransitionList.add(
-            ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.IN_VEHICLE)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build()
-        )
-        activityTransitionList.add(
-            ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.ON_BICYCLE)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
-                .build()
-        )
-        activityTransitionList.add(
-            ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.ON_BICYCLE)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build()
-        )
-        activityTransitionList.add(
-            ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.RUNNING)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
-                .build()
-        )
-        activityTransitionList.add(
-            ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.RUNNING)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build()
-        )
+        addActivity(activityTransitionList, DetectedActivity.WALKING)
+        addActivity(activityTransitionList, DetectedActivity.RUNNING)
+        addActivity(activityTransitionList, DetectedActivity.ON_FOOT)
+        addActivity(activityTransitionList, DetectedActivity.ON_BICYCLE)
+        addActivity(activityTransitionList, DetectedActivity.WALKING)
+        addActivity(activityTransitionList, DetectedActivity.STILL)
+        addActivity(activityTransitionList, DetectedActivity.IN_VEHICLE)
+
         val request = ActivityTransitionRequest(activityTransitionList)
         FileLogger.d("Requesting activity transition updates")
 
@@ -97,5 +45,20 @@ class ActivityRecognitionProvider {
             .addOnFailureListener { e ->
                 FileLogger.e("Failed to register for activity transition updates", e)
             }
+    }
+
+    private fun addActivity(activityTransitionList: ArrayList<ActivityTransition>, activity: Int) {
+        activityTransitionList.add(
+            ActivityTransition.Builder()
+                .setActivityType(activity)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build()
+        )
+        activityTransitionList.add(
+            ActivityTransition.Builder()
+                .setActivityType(activity)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                .build()
+        )
     }
 }
