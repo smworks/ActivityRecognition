@@ -23,10 +23,14 @@ class ActivityRecognitionProvider {
             context,
             0,
             intent,
-            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_MUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
+        if (pendingIntent == null) {
+            FileLogger.e("PendingIntent could not be created or is not available")
+            return
+        }
 
-        val activityTransitionList = ArrayList<ActivityTransition>()
+        val activityTransitionList = mutableListOf<ActivityTransition>()
         addActivity(activityTransitionList, DetectedActivity.WALKING)
         addActivity(activityTransitionList, DetectedActivity.RUNNING)
         addActivity(activityTransitionList, DetectedActivity.ON_FOOT)
@@ -46,7 +50,7 @@ class ActivityRecognitionProvider {
             }
     }
 
-    private fun addActivity(activityTransitionList: ArrayList<ActivityTransition>, activity: Int) {
+    private fun addActivity(activityTransitionList: MutableList<ActivityTransition>, activity: Int) {
         activityTransitionList.add(
             ActivityTransition.Builder()
                 .setActivityType(activity)
