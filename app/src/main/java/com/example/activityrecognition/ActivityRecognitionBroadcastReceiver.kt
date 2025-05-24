@@ -16,7 +16,7 @@ class ActivityRecognitionBroadcastReceiver : BroadcastReceiver() {
 
 
     override fun onReceive(context: Context, intent: Intent) {
-        FileLogger.d("Received broadcast: ${intent.action}")
+        FileLogger.d("Received broadcast: ${intent.getInfo()}")
         
         if (ActivityTransitionResult.hasResult(intent)) {
             val result = ActivityTransitionResult.extractResult(intent)
