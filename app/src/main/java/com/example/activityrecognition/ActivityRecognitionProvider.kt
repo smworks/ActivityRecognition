@@ -15,13 +15,13 @@ class ActivityRecognitionProvider {
     private lateinit var activityRecognitionClient: ActivityRecognitionClient
 
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
-    fun startActivityRecognition(context: Context) {
+    fun startActivityRecognition(context: Context, onSuccess: () -> Unit) {
         FileLogger.d("Starting activity recognition")
         activityRecognitionClient = ActivityRecognition.getClient(context)
         val intent = Intent(context, ActivityRecognitionBroadcastReceiver::class.java)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            0,
+            System.currentTimeMillis().toInt(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
@@ -44,6 +44,7 @@ class ActivityRecognitionProvider {
         activityRecognitionClient.requestActivityTransitionUpdates(request, pendingIntent)
             .addOnSuccessListener {
                 FileLogger.d("Successfully registered for activity transition updates")
+                onSuccess()
             }
             .addOnFailureListener { e ->
                 FileLogger.e("Failed to register for activity transition updates", e)

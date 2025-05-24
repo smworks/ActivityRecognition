@@ -2,7 +2,10 @@ package com.example.activityrecognition
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,51 +19,68 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import android.content.SharedPreferences
 import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.sp
+import com.example.activityrecognition.InVehicleForegroundService.Companion.ACTION_INITIALIZE_SERVICE
+import com.example.activityrecognition.PersistingStorage.Companion.KEY_CURRENT_ACTIVITY
+import com.example.activityrecognition.PersistingStorage.Companion.KEY_EVENTS
+import com.example.activityrecognition.PersistingStorage.Companion.KEY_ROUTE
 
 class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
     private var _currentActivity by mutableStateOf("Unknown")
     private var _activityEvents by mutableStateOf<List<String>>(emptyList())
+    private var _lastRouteCoordinates by mutableStateOf<List<Pair<Double, Double>>>(emptyList())
+
+    private lateinit var persistingStorage: PersistingStorage
 
     @SuppressLint("MissingPermission")
-    private val requestPermissionLauncher = registerForActivityResult(
+    private val requestLocationAndNotificationPermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        val notificationPermissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions[Manifest.permission.POST_NOTIFICATIONS] ?: false
+        } else {
+            true
+        }
+
+        if (fineLocationGranted && coarseLocationGranted && notificationPermissionGranted) {
+            FileLogger.d("Location and Notification permissions granted")
+             if (ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.ACTIVITY_RECOGNITION
+                ) == PackageManager.PERMISSION_GRANTED) {
+                startActivityRecognition()
+            } else {
+                 FileLogger.w("Activity recognition permission was not granted before location permissions.")
+            }
+        } else {
+            FileLogger.w("Location or Notification permissions denied. Fine: $fineLocationGranted, Coarse: $coarseLocationGranted, Notification: $notificationPermissionGranted")
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private val activityRecognitionPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        FileLogger.d("Permission result: $isGranted")
+        FileLogger.d("Activity Recognition Permission result: $isGranted")
         if (isGranted) {
-            startActivityRecognition()
+            requestLocationAndNotificationPermissions()
         } else {
             FileLogger.w("Activity recognition permission denied")
         }
     }
 
-    private lateinit var sharedPreferences: SharedPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        FileLogger.d("onCreate")
-
-        sharedPreferences = getSharedPreferences("activity_events", MODE_PRIVATE)
-
-        when {
-            ContextCompat.checkSelfPermission(
-                this, Manifest.permission.ACTIVITY_RECOGNITION
-            ) == PackageManager.PERMISSION_GRANTED -> {
-                FileLogger.d("Permission already granted")
-                startActivityRecognition()
-            }
-
-            else -> {
-                FileLogger.d("Requesting permission")
-                requestPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-            }
-        }
-
+        persistingStorage = PersistingStorage(this)
+        checkAndRequestPermissions()
         loadSavedEvents()
+        loadLastRoute()
+
 
         setContent {
             MaterialTheme {
@@ -71,50 +91,118 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
                     color = MaterialTheme.colorScheme.background
                 ) {
                     ActivityTrackerScreen(
-                        currentActivity = _currentActivity, activityEvents = _activityEvents
+                        currentActivity = _currentActivity,
+                        activityEvents = _activityEvents,
+                        lastRouteCoordinates = _lastRouteCoordinates
                     )
                 }
             }
         }
     }
 
+    private fun checkAndRequestPermissions() {
+        val activityPermissionGranted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACTIVITY_RECOGNITION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val locationPermissionsGranted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val notificationPermissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(
+                this, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+
+        if (activityPermissionGranted) {
+            if (locationPermissionsGranted && notificationPermissionGranted) {
+                startActivityRecognition()
+            } else {
+                FileLogger.d("Requesting location and/or notification permissions.")
+                requestLocationAndNotificationPermissions()
+            }
+        } else {
+            FileLogger.d("Requesting activity recognition permission.")
+            activityRecognitionPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+        }
+    }
+
+    private fun requestLocationAndNotificationPermissions() {
+        val permissionsToRequest = mutableListOf<String>()
+        permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        requestLocationAndNotificationPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
+    }
+
+
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
     private fun startActivityRecognition() {
-        FileLogger.d("Starting activity recognition service")
-        ActivityRecognitionProvider().startActivityRecognition(applicationContext)
-
+        startService(Intent(this, InVehicleForegroundService::class.java).apply {
+            action = ACTION_INITIALIZE_SERVICE
+        })
     }
 
     private fun loadSavedEvents() {
-        FileLogger.d("Loading saved events")
-        val events = sharedPreferences.getString("events", "")?.split("\n") ?: emptyList()
-        _activityEvents = events
-        _currentActivity = sharedPreferences.getString("current_activity", "Unknown") ?: "Unknown"
-        FileLogger.d("Loaded ${events.size} events")
+        val events = persistingStorage.getEvents().split("\n")
+        _activityEvents = events.filter { it.isNotBlank() }
+        _currentActivity = persistingStorage.getCurrentActivity()
     }
+
+    private fun loadLastRoute() {
+        val routeString = persistingStorage.getRoute()
+        if (routeString != null) {
+            _lastRouteCoordinates = routeString.split(";")
+                .mapNotNull {
+                    val parts = it.split(",")
+                    if (parts.size == 2) {
+                        parts[0].toDoubleOrNull()?.let { lat ->
+                            parts[1].toDoubleOrNull()?.let { lon ->
+                                Pair(lat, lon)
+                            }
+                        }
+                    } else null
+                }
+        } else {
+            _lastRouteCoordinates = emptyList()
+        }
+    }
+
 
     override fun onResume() {
         super.onResume()
-        sharedPreferences.registerOnSharedPreferenceChangeListener(this)
+        persistingStorage.registerOnSharedPreferenceChangeListener(this)
         loadSavedEvents()
+        loadLastRoute()
     }
 
     override fun onPause() {
         super.onPause()
-        sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
+        persistingStorage.unregisterOnSharedPreferenceChangeListener(this)
     }
 
-    override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-        if (key == "events" || key == "current_activity") {
-            FileLogger.d("SharedPreferences changed, reloading events for key: $key")
+    override fun onSharedPreferenceChanged(prefs: SharedPreferences?, key: String?) {
+        if (key == KEY_EVENTS || key == KEY_CURRENT_ACTIVITY) {
             loadSavedEvents()
+        }
+        if (key == KEY_ROUTE) {
+            loadLastRoute()
         }
     }
 }
 
 @Composable
 fun ActivityTrackerScreen(
-    currentActivity: String, activityEvents: List<String>
+    currentActivity: String,
+    activityEvents: List<String>,
+    lastRouteCoordinates: List<Pair<Double, Double>>
 ) {
     Column(
         modifier = Modifier
@@ -143,44 +231,81 @@ fun ActivityTrackerScreen(
         }
 
         var index by remember { mutableIntStateOf(0) }
-        val tabNames = listOf("Activity History", "Logs")
+        val tabNames = listOf("Activity History", "Last Route", "Logs")
         TabRow(selectedTabIndex = index, modifier = Modifier.fillMaxWidth()) {
             tabNames.forEachIndexed { i, name ->
                 Tab(text = { Text(name) }, selected = index == i, onClick = { index = i })
             }
         }
-        when (index) {
-            0 -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(activityEvents) { event ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = event,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    }
-                }
+        Column(modifier = Modifier.weight(1f)) {
+            when (index) {
+                0 -> Events(activityEvents)
+                1 -> Route(routeCoordinates = lastRouteCoordinates)
+                2 -> Logs()
             }
+        }
+    }
+}
 
-            1 -> {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = FileLogger.getLog() ?: "No log",
-                            modifier = Modifier.padding(16.dp),
-                            fontSize = 8.sp
-                        )
-                    }
-                }
+@Composable
+private fun Events(activityEvents: List<String>) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(activityEvents) { event ->
+            Card(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = event,
+                    modifier = Modifier.padding(16.dp)
+                )
             }
+        }
+        if (activityEvents.isEmpty()) {
+            item {
+                Text("No activity events yet.", modifier = Modifier.padding(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun Logs() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = FileLogger.getLog() ?: "No log",
+                modifier = Modifier.padding(16.dp),
+                fontSize = 8.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun Route(routeCoordinates: List<Pair<Double, Double>>) {
+    if (routeCoordinates.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+            Text("No route data recorded.")
+        }
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        contentPadding = PaddingValues(vertical = 8.dp)
+    ) {
+        items(routeCoordinates) { coordinate ->
+            Text("Lat: ${"%.6f".format(coordinate.first)}, Lon: ${"%.6f".format(coordinate.second)}",
+                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
         }
     }
 }
