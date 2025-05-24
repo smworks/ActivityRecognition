@@ -51,6 +51,42 @@ class ActivityRecognitionProvider {
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
                 .build()
         )
+        activityTransitionList.add(
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.IN_VEHICLE)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build()
+        )
+        activityTransitionList.add(
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.IN_VEHICLE)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                .build()
+        )
+        activityTransitionList.add(
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.ON_BICYCLE)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build()
+        )
+        activityTransitionList.add(
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.ON_BICYCLE)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                .build()
+        )
+        activityTransitionList.add(
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.RUNNING)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build()
+        )
+        activityTransitionList.add(
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.RUNNING)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                .build()
+        )
         val request = ActivityTransitionRequest(activityTransitionList)
         FileLogger.d("Requesting activity transition updates")
 
