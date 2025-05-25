@@ -56,7 +56,7 @@ class InVehicleForegroundService : Service() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
-                    FileLogger.d("New location: ${location.latitude}, ${location.longitude}")
+                    println("New location: ${location.latitude}, ${location.longitude}")
                     routePoints.add(Pair(location.latitude, location.longitude))
                     saveRoute()
                 }

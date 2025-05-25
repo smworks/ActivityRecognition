@@ -35,7 +35,7 @@ class ActivityRecognitionBroadcastReceiver : BroadcastReceiver() {
             }
         } else if (ActivityRecognitionResult.hasResult(intent)) {
             val result = ActivityRecognitionResult.extractResult(intent)
-            FileLogger.d("Received Activity Recognition broadcast: ${result?.probableActivities.toString()}")
+            println("Received Activity Recognition broadcast: ${result?.probableActivities.toString()}")
             result?.let {
                 val detectedActivities = it.probableActivities
                 for (activity in detectedActivities) {
