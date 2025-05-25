@@ -18,13 +18,15 @@ class PersistingStorage(context: Context) {
 
     fun storeEvent(
         event: String,
-        activityName: String
+        activityName: String = ""
     ) {
         val events = getEvents()
         val accumulatedEvents = if (events.isEmpty()) event else "$event\n$events"
         sharedPreferences.edit().apply {
             putString(KEY_EVENTS, accumulatedEvents)
-            putString(KEY_CURRENT_ACTIVITY, activityName)
+            if (activityName.isNotEmpty()) {
+                putString(KEY_CURRENT_ACTIVITY, activityName)
+            }
             apply()
         }
     }

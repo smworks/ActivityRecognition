@@ -10,31 +10,50 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
+import androidx.annotation.RequiresPermission
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import androidx.annotation.RequiresPermission
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.activityrecognition.InVehicleForegroundService.Companion.ACTION_INITIALIZE_SERVICE
 import com.example.activityrecognition.PersistingStorage.Companion.KEY_CURRENT_ACTIVITY
 import com.example.activityrecognition.PersistingStorage.Companion.KEY_EVENTS
 import com.example.activityrecognition.PersistingStorage.Companion.KEY_ROUTE
 import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.Polyline
-import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Polyline
+import com.google.maps.android.compose.rememberCameraPositionState
 
 class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
     private var _currentActivity by mutableStateOf("Unknown")
@@ -49,20 +68,22 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
     ) { permissions ->
         val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
         val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
-        val notificationPermissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions[Manifest.permission.POST_NOTIFICATIONS] ?: false
-        } else {
-            true
-        }
+        val notificationPermissionGranted =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                permissions[Manifest.permission.POST_NOTIFICATIONS] ?: false
+            } else {
+                true
+            }
 
         if (fineLocationGranted && coarseLocationGranted && notificationPermissionGranted) {
             FileLogger.d("Location and Notification permissions granted")
-             if (ContextCompat.checkSelfPermission(
+            if (ContextCompat.checkSelfPermission(
                     this, Manifest.permission.ACTIVITY_RECOGNITION
-                ) == PackageManager.PERMISSION_GRANTED) {
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
                 startActivityRecognition()
             } else {
-                 FileLogger.w("Activity recognition permission was not granted before location permissions.")
+                FileLogger.w("Activity recognition permission was not granted before location permissions.")
             }
         } else {
             FileLogger.w("Location or Notification permissions denied. Fine: $fineLocationGranted, Coarse: $coarseLocationGranted, Notification: $notificationPermissionGranted")
@@ -119,13 +140,14 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
             this, Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
 
-        val notificationPermissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(
-                this, Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
+        val notificationPermissionGranted =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
 
         if (activityPermissionGranted) {
             if (locationPermissionsGranted && notificationPermissionGranted) {
@@ -298,7 +320,9 @@ private fun Logs() {
 @Composable
 fun Route(routeCoordinates: List<Pair<Double, Double>>) {
     if (routeCoordinates.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp), contentAlignment = Alignment.Center) {
             Text("No route data recorded.")
         }
         return
@@ -307,7 +331,7 @@ fun Route(routeCoordinates: List<Pair<Double, Double>>) {
     val latLngList = routeCoordinates.map { LatLng(it.first, it.second) }
 
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(latLngList.firstOrNull() ?: LatLng(0.0,0.0), 15f)
+        position = CameraPosition.fromLatLngZoom(latLngList.firstOrNull() ?: LatLng(0.0, 0.0), 15f)
     }
 
     LaunchedEffect(latLngList) {
@@ -316,7 +340,12 @@ fun Route(routeCoordinates: List<Pair<Double, Double>>) {
             for (latLng in latLngList) {
                 boundsBuilder.include(latLng)
             }
-            cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 50))
+            cameraPositionState.animate(
+                CameraUpdateFactory.newLatLngBounds(
+                    boundsBuilder.build(),
+                    50
+                )
+            )
         }
     }
 

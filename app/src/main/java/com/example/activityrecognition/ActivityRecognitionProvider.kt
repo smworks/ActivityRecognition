@@ -6,39 +6,44 @@ import android.content.Context
 import android.content.Intent
 import androidx.annotation.RequiresPermission
 import com.google.android.gms.location.ActivityRecognition
-import com.google.android.gms.location.ActivityRecognitionClient
 import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.location.ActivityTransitionRequest
 
-class ActivityRecognitionProvider {
-    private lateinit var activityRecognitionClient: ActivityRecognitionClient
+class ActivityRecognitionProvider(private val context: Context) {
+    companion object {
+        private const val ACTIVITY_TRANSITION_INTENT_REQUEST = 1991
+        private const val ACTIVITY_UPDATES_INTENT_REQUEST = 1992
+    }
+
+    private val activityRecognitionClient = ActivityRecognition.getClient(context)
 
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
-    fun startActivityRecognition(context: Context) {
-        FileLogger.d("Starting activity recognition")
-        activityRecognitionClient = ActivityRecognition.getClient(context)
-        val intent = Intent(context, ActivityRecognitionBroadcastReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            System.currentTimeMillis().toInt(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        )
+    fun startActivityUpdatesWithBroadcast() {
+        val pendingIntent = createRecognitionPendingIntent()
         if (pendingIntent == null) {
-            FileLogger.e("PendingIntent could not be created or is not available")
+            FileLogger.e("Activity update PendingIntent could not be created or is not available")
+            return
+        }
+        activityRecognitionClient.requestActivityUpdates(1000L, pendingIntent)
+            .addOnSuccessListener {
+                FileLogger.d("Successfully registered for activity updates")
+            }
+            .addOnFailureListener { e ->
+                FileLogger.e("Failed to register for activity updates", e)
+            }
+    }
+
+    @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
+    fun startActivityTransitionRecognitionWithBroadcast() {
+        FileLogger.d("Starting activity recognition")
+        val pendingIntent = createTransitionPendingIntent()
+        if (pendingIntent == null) {
+            FileLogger.e("Activity transition PendingIntent could not be created or is not available")
             return
         }
 
-        val activityTransitionList = mutableListOf<ActivityTransition>()
-        addActivity(activityTransitionList, DetectedActivity.WALKING)
-        addActivity(activityTransitionList, DetectedActivity.RUNNING)
-        addActivity(activityTransitionList, DetectedActivity.ON_FOOT)
-        addActivity(activityTransitionList, DetectedActivity.ON_BICYCLE)
-        addActivity(activityTransitionList, DetectedActivity.STILL)
-        addActivity(activityTransitionList, DetectedActivity.IN_VEHICLE)
-
-        val request = ActivityTransitionRequest(activityTransitionList)
+        val request = createActivityTransitionRequest()
         FileLogger.d("Requesting activity transition updates")
 
         activityRecognitionClient.requestActivityTransitionUpdates(request, pendingIntent)
@@ -48,6 +53,39 @@ class ActivityRecognitionProvider {
             .addOnFailureListener { e ->
                 FileLogger.e("Failed to register for activity transition updates", e)
             }
+    }
+
+    fun createTransitionPendingIntent(): PendingIntent? {
+        val intent = Intent(context, ActivityRecognitionBroadcastReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            ACTIVITY_TRANSITION_INTENT_REQUEST,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+        return pendingIntent
+    }
+
+    fun createRecognitionPendingIntent(): PendingIntent? {
+        val intent = Intent(context, ActivityRecognitionBroadcastReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            ACTIVITY_UPDATES_INTENT_REQUEST,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+        return pendingIntent
+    }
+
+    fun createActivityTransitionRequest(): ActivityTransitionRequest {
+        val activityTransitionList = mutableListOf<ActivityTransition>()
+        addActivity(activityTransitionList, DetectedActivity.WALKING)
+        addActivity(activityTransitionList, DetectedActivity.RUNNING)
+        addActivity(activityTransitionList, DetectedActivity.ON_FOOT)
+        addActivity(activityTransitionList, DetectedActivity.ON_BICYCLE)
+        addActivity(activityTransitionList, DetectedActivity.STILL)
+        addActivity(activityTransitionList, DetectedActivity.IN_VEHICLE)
+        return ActivityTransitionRequest(activityTransitionList)
     }
 
     private fun addActivity(activityTransitionList: MutableList<ActivityTransition>, activity: Int) {
