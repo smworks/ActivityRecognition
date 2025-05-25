@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Context.MODE_PRIVATE
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class PersistingStorage(context: Context) {
 
@@ -15,13 +18,16 @@ class PersistingStorage(context: Context) {
     }
 
     private val sharedPreferences = context.getSharedPreferences(STORAGE_NAME, MODE_PRIVATE)
+    private val dateFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     fun storeEvent(
         event: String,
         activityName: String = ""
     ) {
         val events = getEvents()
-        val accumulatedEvents = if (events.isEmpty()) event else "$event\n$events"
+        val currentTime = dateFormat.format(Date())
+        val newEvent = "$currentTime: $event"
+        val accumulatedEvents = if (events.isEmpty()) newEvent else "$newEvent\n$events"
         sharedPreferences.edit().apply {
             putString(KEY_EVENTS, accumulatedEvents)
             if (activityName.isNotEmpty()) {

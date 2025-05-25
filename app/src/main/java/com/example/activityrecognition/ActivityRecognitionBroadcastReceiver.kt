@@ -39,28 +39,17 @@ class ActivityRecognitionBroadcastReceiver : BroadcastReceiver() {
             result?.let {
                 val detectedActivities = it.probableActivities
                 for (activity in detectedActivities) {
-                    val serviceIntent =
-                        Intent(context, InVehicleForegroundService::class.java).apply {
-                            action = InVehicleForegroundService.ACTION_ACTIVITY_UPDATE_RECOGNISED
-                            putExtra(
-                                InVehicleForegroundService.EXTRA_ACTIVITY_TYPE,
-                                activity.type
-                            )
-                            putExtra(
-                                InVehicleForegroundService.EXTRA_CONFIDENCE,
-                                activity.confidence
-                            )
-                        }
-                    try {
-                        context.startForegroundService(serviceIntent)
-                    } catch (t: Throwable) {
-                        FileLogger.e("Failed to start service for activity update: ${t.message}")
-                    }
+                    handleActivity(activity.type, activity.confidence)
                 }
             }
         }
         else {
             FileLogger.w("Received an unrecognized intent action: ${intent.getInfo()}")
         }
+    }
+
+    private fun handleActivity(activityType: Int, confidence: Int) {
+        val activityName = activityType.getActivityName()
+        println("Service handleActivity($activityName, confidence: $confidence)")
     }
 } 

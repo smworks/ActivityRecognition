@@ -5,6 +5,7 @@ package com.example.activityrecognition
 import android.content.Intent
 import android.os.Bundle
 import android.os.Parcelable
+import com.google.android.gms.location.DetectedActivity
 
 
 fun Intent.getInfo(): String {
@@ -59,4 +60,17 @@ fun bundleToString(bundle: Bundle?): String {
 
     out.append("]")
     return out.toString()
+}
+
+fun Int.getActivityName(): String {
+    return when (this) {
+        DetectedActivity.STILL -> "Still"
+        DetectedActivity.WALKING -> "Walking"
+        DetectedActivity.RUNNING -> "Running"
+        DetectedActivity.ON_BICYCLE -> "Cycling"
+        DetectedActivity.IN_VEHICLE -> "In Vehicle"
+        DetectedActivity.UNKNOWN -> "Unknown"
+        DetectedActivity.TILTING -> "Tilting"
+        else -> "Unknown Activity Type: $this"
+    }
 }

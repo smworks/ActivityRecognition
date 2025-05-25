@@ -21,9 +21,6 @@ import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class InVehicleForegroundService : Service() {
 
@@ -32,15 +29,13 @@ class InVehicleForegroundService : Service() {
     private lateinit var persistingStorage: PersistingStorage
     private var routePoints = mutableListOf<Pair<Double, Double>>()
     private lateinit var activityRecognitionProvider: ActivityRecognitionProvider
-    private val dateFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+
 
     companion object {
         const val ACTION_INITIALIZE_SERVICE = "ACTION_START_FOREGROUND_SERVICE"
         const val ACTION_ACTIVITY_TRANSITION_RECOGNISED = "ACTION_ACTIVITY_TRANSITION_RECOGNISED"
-        const val ACTION_ACTIVITY_UPDATE_RECOGNISED = "ACTION_ACTIVITY_UPDATE_RECOGNISED"
         const val EXTRA_ACTIVITY_TYPE = "extra_activity_type"
         const val EXTRA_TRANSITION_TYPE = "extra_transition_type"
-        const val EXTRA_CONFIDENCE = "extra_confidence"
         private const val NOTIFICATION_CHANNEL_ID = "in_vehicle_service_channel"
         private const val NOTIFICATION_ID = 1
         private const val SERVICE_REQUEST_CODE = 1990
@@ -75,40 +70,35 @@ class InVehicleForegroundService : Service() {
 
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startForeground()
         when (intent?.action) {
             ACTION_INITIALIZE_SERVICE -> {
-                startForeground()
                 activityRecognitionProvider.startActivityTransitionRecognitionWithBroadcast()
                 activityRecognitionProvider.startActivityUpdatesWithBroadcast()
             }
 
-            ACTION_ACTIVITY_TRANSITION_RECOGNISED -> handleActivityTransition(
-                activityType = intent.extras?.getInt(EXTRA_ACTIVITY_TYPE) ?: 0,
-                transitionType = intent.extras?.getInt(EXTRA_TRANSITION_TYPE) ?: 0
-            )
-
-            ACTION_ACTIVITY_UPDATE_RECOGNISED -> handleActivity(
-                activityType = intent.extras?.getInt(EXTRA_ACTIVITY_TYPE) ?: 0,
-                confidence = intent.extras?.getInt(EXTRA_CONFIDENCE) ?: 0
-            )
+            ACTION_ACTIVITY_TRANSITION_RECOGNISED -> {
+                handleActivityTransition(
+                    activityType = intent.extras?.getInt(EXTRA_ACTIVITY_TYPE) ?: 0,
+                    transitionType = intent.extras?.getInt(EXTRA_TRANSITION_TYPE) ?: 0
+                )
+            }
         }
         return START_STICKY
     }
 
     private fun handleActivityTransition(activityType: Int, transitionType: Int) {
-        val currentTime = dateFormat.format(Date())
-        val activityName = getActivityName(activityType)
+        val activityName = activityType.getActivityName()
         val transitionName = getTransitionName(transitionType)
 
         FileLogger.i("Service handleActivityTransition($activityName, $transitionName)")
-        val event = "$currentTime - $activityName - $transitionName"
+        val event = "$activityName - $transitionName"
         persistingStorage.storeEvent(event, activityName)
 
         updateNotification(activityName)
 
         if (activityType != DetectedActivity.STILL) {
             if (transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
-                startForeground()
                 startLocationUpdates()
             } else if (transitionType == ActivityTransition.ACTIVITY_TRANSITION_EXIT) {
                 stopLocationUpdates()
@@ -116,30 +106,7 @@ class InVehicleForegroundService : Service() {
             }
         } else if (transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
             stopLocationUpdates()
-//            stopForeground()
-        }
-    }
-
-    private fun handleActivity(activityType: Int, confidence: Int) {
-        val activityName = getActivityName(activityType)
-        FileLogger.i("Service handleActivity($activityName, confidence: $confidence)")
-        if (confidence > 50) {
-            val currentTime = dateFormat.format(Date())
-            val event = "$currentTime - $activityName - $confidence"
-            persistingStorage.storeEvent(event)
-        }
-    }
-
-    private fun getActivityName(activityType: Int): String {
-        return when (activityType) {
-            DetectedActivity.STILL -> "Still"
-            DetectedActivity.WALKING -> "Walking"
-            DetectedActivity.RUNNING -> "Running"
-            DetectedActivity.ON_BICYCLE -> "Cycling"
-            DetectedActivity.IN_VEHICLE -> "In Vehicle"
-            DetectedActivity.UNKNOWN -> "Unknown"
-            DetectedActivity.TILTING -> "Tilting"
-            else -> "Unknown Activity Type: $activityType"
+            stopForeground()
         }
     }
 
@@ -187,8 +154,9 @@ class InVehicleForegroundService : Service() {
         }
         fusedLocationClient.requestLocationUpdates(
             locationRequest, locationCallback, Looper.getMainLooper()
-        )
-        FileLogger.d("Location updates started")
+        ).addOnFailureListener {
+            FileLogger.e("Failed to request location updates: ${it.message}")
+        }
     }
 
     fun updateNotification(activityName: String) {
@@ -198,14 +166,14 @@ class InVehicleForegroundService : Service() {
     }
 
     private fun startForeground() {
-        if (isServiceInForeground) {
-            return
-        }
-        FileLogger.i("Service startForeground()")
+        FileLogger.i("Service startForeground(). Is already started: $isServiceInForeground")
         val notification = createNotification(persistingStorage.getCurrentActivity())
 
         startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-        isServiceInForeground = true
+        
+        if (!isServiceInForeground) {
+            isServiceInForeground = true
+        }
     }
 
     private fun createNotification(activityName: String): Notification {
@@ -217,8 +185,8 @@ class InVehicleForegroundService : Service() {
 
         val notification =
             NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-                .setContentTitle("In Movement")
-                .setContentText("Detected activity: $activityName. Tracking location.")
+                .setContentTitle("Activity Recognition")
+                .setContentText("Detected activity: $activityName.")
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentIntent(pendingIntent)
                 .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)

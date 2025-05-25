@@ -343,8 +343,9 @@ private fun Logs() {
         ) {
             Text(
                 text = FileLogger.getLog() ?: "No log",
-                modifier = Modifier.padding(16.dp),
-                fontSize = 8.sp
+                modifier = Modifier.padding(vertical = 16.dp),
+                fontSize = 8.sp,
+                lineHeight = 8.sp
             )
         }
     }
