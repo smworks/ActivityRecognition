@@ -74,19 +74,59 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
             } else {
                 true
             }
+        // Background location permission is requested separately on Android 10+ if foreground is granted
+        val backgroundLocationGranted =
+            permissions[Manifest.permission.ACCESS_BACKGROUND_LOCATION] ?: false  // This will likely be false here
 
         if (fineLocationGranted && coarseLocationGranted && notificationPermissionGranted) {
-            FileLogger.d("Location and Notification permissions granted")
+            FileLogger.d("Foreground Location and Notification permissions granted")
+            if (ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.ACTIVITY_RECOGNITION
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                // Now check for background location
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                        FileLogger.d("Background Location permission already granted.")
+                        startActivityRecognition()
+                    } else {
+                        FileLogger.d("Requesting background location permission.")
+                        // You should ideally show a rationale to the user here before launching this
+                        backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                    }
+                } else {
+                    // On older versions, background location is implied if foreground is granted
+                    startActivityRecognition()
+                }
+            } else {
+                FileLogger.w("Activity recognition permission was not granted before location permissions.")
+            }
+        } else {
+            FileLogger.w("Foreground Location or Notification permissions denied. Fine: $fineLocationGranted, Coarse: $coarseLocationGranted, Notification: $notificationPermissionGranted")
+            // Handle cases where essential permissions are denied. Maybe show a message to the user.
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private val backgroundLocationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            FileLogger.d("Background Location permission granted.")
             if (ContextCompat.checkSelfPermission(
                     this, Manifest.permission.ACTIVITY_RECOGNITION
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
                 startActivityRecognition()
             } else {
-                FileLogger.w("Activity recognition permission was not granted before location permissions.")
+                 FileLogger.w("Activity recognition permission was not granted when background location was granted.")
+                 // This scenario should ideally not happen if flow is correct
             }
         } else {
-            FileLogger.w("Location or Notification permissions denied. Fine: $fineLocationGranted, Coarse: $coarseLocationGranted, Notification: $notificationPermissionGranted")
+            FileLogger.w("Background Location permission denied.")
+            // Handle denial. Maybe inform the user that certain features will be limited.
+            // You could still start activity recognition if only foreground location is needed for some parts.
+            // For now, let's assume it's critical.
         }
     }
 
@@ -96,7 +136,7 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
     ) { isGranted ->
         FileLogger.d("Activity Recognition Permission result: $isGranted")
         if (isGranted) {
-            requestLocationAndNotificationPermissions()
+            requestForegroundLocationAndNotificationPermissions()
         } else {
             FileLogger.w("Activity recognition permission denied")
         }
@@ -134,11 +174,16 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
             this, Manifest.permission.ACTIVITY_RECOGNITION
         ) == PackageManager.PERMISSION_GRANTED
 
-        val locationPermissionsGranted = ContextCompat.checkSelfPermission(
+        val fineLocationGranted = ContextCompat.checkSelfPermission(
             this, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(
+        ) == PackageManager.PERMISSION_GRANTED
+        val coarseLocationGranted = ContextCompat.checkSelfPermission(
             this, Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
+        val backgroundLocationGranted =
+            ContextCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
 
         val notificationPermissionGranted =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -150,11 +195,15 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
             }
 
         if (activityPermissionGranted) {
-            if (locationPermissionsGranted && notificationPermissionGranted) {
+            if (fineLocationGranted && coarseLocationGranted && notificationPermissionGranted && backgroundLocationGranted) {
                 startActivityRecognition()
-            } else {
-                FileLogger.d("Requesting location and/or notification permissions.")
-                requestLocationAndNotificationPermissions()
+            } else if (!fineLocationGranted || !coarseLocationGranted || !notificationPermissionGranted) {
+                FileLogger.d("Requesting foreground location and/or notification permissions.")
+                requestForegroundLocationAndNotificationPermissions()
+            } else { // Foreground and notifications are granted, but background location is missing
+                FileLogger.d("Requesting background location permission.")
+                // You should ideally show a rationale to the user here
+                backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
             }
         } else {
             FileLogger.d("Requesting activity recognition permission.")
@@ -162,13 +211,15 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
         }
     }
 
-    private fun requestLocationAndNotificationPermissions() {
+    private fun requestForegroundLocationAndNotificationPermissions() {
         val permissionsToRequest = mutableListOf<String>()
         permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION)
         permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
         }
+        // DO NOT request ACCESS_BACKGROUND_LOCATION here directly with foreground permissions.
+        // It must be requested separately after foreground location is granted.
         requestLocationAndNotificationPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
     }
 
