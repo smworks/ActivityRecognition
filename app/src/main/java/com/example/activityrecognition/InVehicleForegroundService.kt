@@ -1,10 +1,7 @@
 package com.example.activityrecognition
 
 import android.Manifest
-import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -13,7 +10,7 @@ import android.os.IBinder
 import android.os.Looper
 import androidx.annotation.RequiresPermission
 import androidx.core.app.ActivityCompat
-import androidx.core.app.NotificationCompat
+import com.example.activityrecognition.NotificationProvider.Companion.NOTIFICATION_ID
 import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -27,6 +24,7 @@ class InVehicleForegroundService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private lateinit var persistingStorage: PersistingStorage
+    private lateinit var notificationProvider: NotificationProvider
     private var routePoints = mutableListOf<Pair<Double, Double>>()
     private lateinit var activityRecognitionProvider: ActivityRecognitionProvider
 
@@ -36,9 +34,7 @@ class InVehicleForegroundService : Service() {
         const val ACTION_ACTIVITY_TRANSITION_RECOGNISED = "ACTION_ACTIVITY_TRANSITION_RECOGNISED"
         const val EXTRA_ACTIVITY_TYPE = "extra_activity_type"
         const val EXTRA_TRANSITION_TYPE = "extra_transition_type"
-        private const val NOTIFICATION_CHANNEL_ID = "in_vehicle_service_channel"
-        private const val NOTIFICATION_ID = 1
-        private const val SERVICE_REQUEST_CODE = 1990
+
 
         fun isRunning() = isServiceInForeground
 
@@ -54,7 +50,8 @@ class InVehicleForegroundService : Service() {
         persistingStorage.storeEvent("Service created")
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         activityRecognitionProvider = ActivityRecognitionProvider(this)
-        createNotificationChannel()
+        notificationProvider = NotificationProvider(this)
+        notificationProvider.createNotificationChannel()
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
@@ -126,16 +123,6 @@ class InVehicleForegroundService : Service() {
         isServiceInForeground = false
     }
 
-    private fun createNotificationChannel() {
-        val serviceChannel = NotificationChannel(
-            NOTIFICATION_CHANNEL_ID,
-            "In Movement Service Channel",
-            NotificationManager.IMPORTANCE_DEFAULT
-        )
-        val manager = getSystemService(NotificationManager::class.java)
-        manager?.createNotificationChannel(serviceChannel)
-    }
-
     private fun startLocationUpdates() {
         FileLogger.i("Service startLocationUpdates()")
         val locationRequest = LocationRequest.Builder(1000).setMinUpdateIntervalMillis(100)
@@ -160,14 +147,14 @@ class InVehicleForegroundService : Service() {
     }
 
     fun updateNotification(activityName: String) {
-        val notification = createNotification(activityName)
+        val notification = notificationProvider.createNotification(activityName)
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager?.notify(NOTIFICATION_ID, notification)
     }
 
     private fun startForeground() {
         FileLogger.i("Service startForeground(). Is already started: $isServiceInForeground")
-        val notification = createNotification(persistingStorage.getCurrentActivity())
+        val notification = notificationProvider.createNotification(persistingStorage.getCurrentActivity())
 
         startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
         
@@ -176,24 +163,6 @@ class InVehicleForegroundService : Service() {
         }
     }
 
-    private fun createNotification(activityName: String): Notification {
-        val notificationIntent = Intent(this, MainActivity::class.java)
-        val pendingIntentFlags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        val pendingIntent = PendingIntent.getActivity(
-            this, SERVICE_REQUEST_CODE, notificationIntent, pendingIntentFlags
-        )
-
-        val notification =
-            NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-                .setContentTitle("Activity Recognition")
-                .setContentText("Detected activity: $activityName.")
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentIntent(pendingIntent)
-                .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
-                .build()
-
-        return notification
-    }
 
     private fun stopLocationUpdates() {
         fusedLocationClient.removeLocationUpdates(locationCallback).addOnFailureListener {
