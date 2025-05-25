@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
@@ -80,7 +81,11 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
                     this, Manifest.permission.ACTIVITY_RECOGNITION
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                if (ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
                     FileLogger.d("Background Location permission already granted.")
                     startActivityRecognition()
                 } else {
@@ -107,7 +112,7 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
             ) {
                 startActivityRecognition()
             } else {
-                 FileLogger.w("Activity recognition permission was not granted when background location was granted.")
+                FileLogger.w("Activity recognition permission was not granted when background location was granted.")
             }
         } else {
             FileLogger.w("Background Location permission denied.")
@@ -309,23 +314,29 @@ fun ActivityTrackerScreen(
 
 @Composable
 private fun Events(activityEvents: List<String>) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(activityEvents) { event ->
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = event,
-                    modifier = Modifier.padding(16.dp)
-                )
+    val listState = rememberLazyListState()
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .lazyListScrollBar(listState),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(activityEvents) { event ->
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = event,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
             }
-        }
-        if (activityEvents.isEmpty()) {
-            item {
-                Text("No activity events yet.", modifier = Modifier.padding(16.dp))
+            if (activityEvents.isEmpty()) {
+                item {
+                    Text("No activity events yet.", modifier = Modifier.padding(16.dp))
+                }
             }
         }
     }
@@ -333,30 +344,30 @@ private fun Events(activityEvents: List<String>) {
 
 @Composable
 private fun Logs() {
+    val scrollState = rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .scrollBar(scrollState, color = MaterialTheme.colorScheme.primary)
+            .verticalScroll(scrollState)
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = FileLogger.getLog() ?: "No log",
-                modifier = Modifier.padding(vertical = 16.dp),
-                fontSize = 8.sp,
-                lineHeight = 8.sp
-            )
-        }
+        Text(
+            text = FileLogger.getLog() ?: "No log",
+            modifier = Modifier.padding(vertical = 16.dp),
+            fontSize = 8.sp,
+            lineHeight = 8.sp
+        )
     }
 }
 
 @Composable
 fun Route(routeCoordinates: List<Pair<Double, Double>>) {
     if (routeCoordinates.isEmpty()) {
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp), contentAlignment = Alignment.Center
+        ) {
             Text("No route data recorded.")
         }
         return
