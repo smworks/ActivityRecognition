@@ -27,6 +27,14 @@ import com.example.activityrecognition.InVehicleForegroundService.Companion.ACTI
 import com.example.activityrecognition.PersistingStorage.Companion.KEY_CURRENT_ACTIVITY
 import com.example.activityrecognition.PersistingStorage.Companion.KEY_EVENTS
 import com.example.activityrecognition.PersistingStorage.Companion.KEY_ROUTE
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.Polyline
+import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.MapProperties
 
 class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
     private var _currentActivity by mutableStateOf("Unknown")
@@ -145,9 +153,11 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
 
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
     private fun startActivityRecognition() {
-        startService(Intent(this, InVehicleForegroundService::class.java).apply {
-            action = ACTION_INITIALIZE_SERVICE
-        })
+        if (!InVehicleForegroundService.isRunning()) {
+            startService(Intent(this, InVehicleForegroundService::class.java).apply {
+                action = ACTION_INITIALIZE_SERVICE
+            })
+        }
     }
 
     private fun loadSavedEvents() {
@@ -158,21 +168,16 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
 
     private fun loadLastRoute() {
         val routeString = persistingStorage.getRoute()
-        if (routeString != null) {
-            _lastRouteCoordinates = routeString.split(";")
-                .mapNotNull {
-                    val parts = it.split(",")
-                    if (parts.size == 2) {
-                        parts[0].toDoubleOrNull()?.let { lat ->
-                            parts[1].toDoubleOrNull()?.let { lon ->
-                                Pair(lat, lon)
-                            }
-                        }
-                    } else null
+        _lastRouteCoordinates = routeString?.split(";")?.mapNotNull {
+            val parts = it.split(",")
+            if (parts.size == 2) {
+                parts[0].toDoubleOrNull()?.let { lat ->
+                    parts[1].toDoubleOrNull()?.let { lon ->
+                        Pair(lat, lon)
+                    }
                 }
-        } else {
-            _lastRouteCoordinates = emptyList()
-        }
+            } else null
+        } ?: emptyList()
     }
 
 
@@ -298,14 +303,31 @@ fun Route(routeCoordinates: List<Pair<Double, Double>>) {
         }
         return
     }
-    LazyColumn(
+
+    val latLngList = routeCoordinates.map { LatLng(it.first, it.second) }
+
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(latLngList.firstOrNull() ?: LatLng(0.0,0.0), 15f)
+    }
+
+    LaunchedEffect(latLngList) {
+        if (latLngList.isNotEmpty()) {
+            val boundsBuilder = com.google.android.gms.maps.model.LatLngBounds.builder()
+            for (latLng in latLngList) {
+                boundsBuilder.include(latLng)
+            }
+            cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 50))
+        }
+    }
+
+    GoogleMap(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        cameraPositionState = cameraPositionState,
+        properties = MapProperties(isMyLocationEnabled = true),
+        uiSettings = MapUiSettings(myLocationButtonEnabled = true)
     ) {
-        items(routeCoordinates) { coordinate ->
-            Text("Lat: ${"%.6f".format(coordinate.first)}, Lon: ${"%.6f".format(coordinate.second)}",
-                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+        if (latLngList.isNotEmpty()) {
+            Polyline(points = latLngList)
         }
     }
 }

@@ -35,13 +35,14 @@ class InVehicleForegroundService : Service() {
 
     companion object {
         const val ACTION_INITIALIZE_SERVICE = "ACTION_START_FOREGROUND_SERVICE"
-        const val ACTION_STOP_FOREGROUND_SERVICE = "ACTION_STOP_FOREGROUND_SERVICE"
         const val ACTION_ACTIVITY_RECOGNISED = "ACTION_ACTIVITY_RECOGNISED"
         const val EXTRA_ACTIVITY_TYPE = "extra_activity_type"
         const val EXTRA_TRANSITION_TYPE = "extra_transition_type"
         private const val NOTIFICATION_CHANNEL_ID = "in_vehicle_service_channel"
         private const val NOTIFICATION_ID = 1
         private const val SERVICE_REQUEST_CODE = 1990
+
+        fun isRunning() = isServiceInForeground
 
         @Volatile
         private var isServiceInForeground = false
@@ -72,17 +73,12 @@ class InVehicleForegroundService : Service() {
         when (intent?.action) {
             ACTION_INITIALIZE_SERVICE -> {
                 startForeground()
-                activityRecognitionProvider.startActivityRecognition(this) {
-//            stopForeground()
-
-                }
+                activityRecognitionProvider.startActivityRecognition(this)
             }
 
-            ACTION_STOP_FOREGROUND_SERVICE -> stopForeground()
             ACTION_ACTIVITY_RECOGNISED -> handleRecognisedActivity(
-                intent.extras?.getInt(
-                    EXTRA_ACTIVITY_TYPE
-                ) ?: 0, intent.extras?.getInt(EXTRA_TRANSITION_TYPE) ?: 0
+                activityType = intent.extras?.getInt(EXTRA_ACTIVITY_TYPE) ?: 0,
+                transitionType = intent.extras?.getInt(EXTRA_TRANSITION_TYPE) ?: 0
             )
         }
         return START_STICKY
@@ -107,6 +103,9 @@ class InVehicleForegroundService : Service() {
                 stopLocationUpdates()
                 stopForeground()
             }
+        } else if (transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
+            stopLocationUpdates()
+//            stopForeground()
         }
     }
 
@@ -149,18 +148,13 @@ class InVehicleForegroundService : Service() {
 
     private fun startLocationUpdates() {
         FileLogger.i("Service startLocationUpdates()")
-        val locationRequest = LocationRequest.Builder(1000)
-            .setMinUpdateIntervalMillis(100)
-            .setMaxUpdateDelayMillis(1000)
-            .setMinUpdateDistanceMeters(1f)
-            .build()
+        val locationRequest = LocationRequest.Builder(1000).setMinUpdateIntervalMillis(100)
+            .setMaxUpdateDelayMillis(1000).setMinUpdateDistanceMeters(1f).build()
 
         if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                this, Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
+                this, Manifest.permission.ACCESS_COARSE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             FileLogger.e(
@@ -169,9 +163,7 @@ class InVehicleForegroundService : Service() {
             return
         }
         fusedLocationClient.requestLocationUpdates(
-            locationRequest,
-            locationCallback,
-            Looper.getMainLooper()
+            locationRequest, locationCallback, Looper.getMainLooper()
         )
         FileLogger.d("Location updates started")
     }
@@ -195,22 +187,15 @@ class InVehicleForegroundService : Service() {
 
     private fun createNotification(activityName: String): Notification {
         val notificationIntent = Intent(this, MainActivity::class.java)
-        val pendingIntentFlags =
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        val pendingIntent =
-            PendingIntent.getActivity(
-                this,
-                SERVICE_REQUEST_CODE,
-                notificationIntent,
-                pendingIntentFlags
-            )
+        val pendingIntentFlags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        val pendingIntent = PendingIntent.getActivity(
+            this, SERVICE_REQUEST_CODE, notificationIntent, pendingIntentFlags
+        )
 
-        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("In Movement")
-            .setContentText("Detected activity: $activityName. Tracking location.")
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentIntent(pendingIntent)
-            .build()
+        val notification =
+            NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID).setContentTitle("In Movement")
+                .setContentText("Detected activity: $activityName. Tracking location.")
+                .setSmallIcon(R.mipmap.ic_launcher).setContentIntent(pendingIntent).build()
         return notification
     }
 
