@@ -11,9 +11,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,7 +34,9 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,13 +44,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.activityrecognition.InVehicleForegroundService.Companion.ACTION_INITIALIZE_SERVICE
 import com.example.activityrecognition.PersistingStorage.Companion.KEY_CURRENT_ACTIVITY
 import com.example.activityrecognition.PersistingStorage.Companion.KEY_EVENTS
-import com.example.activityrecognition.PersistingStorage.Companion.KEY_ROUTE
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -59,7 +63,6 @@ import com.google.maps.android.compose.rememberCameraPositionState
 class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
     private var _currentActivity by mutableStateOf("Unknown")
     private var _activityEvents by mutableStateOf<List<String>>(emptyList())
-    private var _lastRouteCoordinates by mutableStateOf<List<Pair<Double, Double>>>(emptyList())
 
     private lateinit var persistingStorage: PersistingStorage
 
@@ -131,28 +134,26 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
         }
     }
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         persistingStorage = PersistingStorage(this)
         checkAndRequestPermissions()
         loadSavedEvents()
-        loadLastRoute()
-
 
         setContent {
             MaterialTheme {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .systemBarsPadding(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    ActivityTrackerScreen(
-                        currentActivity = _currentActivity,
-                        activityEvents = _activityEvents,
-                        lastRouteCoordinates = _lastRouteCoordinates
-                    )
+                CompositionLocalProvider(Storage provides persistingStorage) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .systemBarsPadding(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        ActivityTrackerScreen(
+                            currentActivity = _currentActivity,
+                            activityEvents = _activityEvents
+                        )
+                    }
                 }
             }
         }
@@ -226,26 +227,10 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
         _currentActivity = persistingStorage.getCurrentActivity()
     }
 
-    private fun loadLastRoute() {
-        val routeString = persistingStorage.getRoute()
-        _lastRouteCoordinates = routeString?.split(";")?.mapNotNull {
-            val parts = it.split(",")
-            if (parts.size == 2) {
-                parts[0].toDoubleOrNull()?.let { lat ->
-                    parts[1].toDoubleOrNull()?.let { lon ->
-                        Pair(lat, lon)
-                    }
-                }
-            } else null
-        } ?: emptyList()
-    }
-
-
     override fun onResume() {
         super.onResume()
         persistingStorage.registerOnSharedPreferenceChangeListener(this)
         loadSavedEvents()
-        loadLastRoute()
     }
 
     override fun onPause() {
@@ -257,17 +242,16 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
         if (key == KEY_EVENTS || key == KEY_CURRENT_ACTIVITY) {
             loadSavedEvents()
         }
-        if (key == KEY_ROUTE) {
-            loadLastRoute()
-        }
     }
 }
+
+@SuppressLint("CompositionLocalNaming")
+private val Storage = compositionLocalOf<PersistingStorage?> { null }
 
 @Composable
 fun ActivityTrackerScreen(
     currentActivity: String,
-    activityEvents: List<String>,
-    lastRouteCoordinates: List<Pair<Double, Double>>
+    activityEvents: List<String>
 ) {
     Column(
         modifier = Modifier
@@ -296,7 +280,7 @@ fun ActivityTrackerScreen(
         }
 
         var index by remember { mutableIntStateOf(0) }
-        val tabNames = listOf("Activity History", "Last Route", "Logs")
+        val tabNames = listOf("Activity History", "Routes", "Logs")
         TabRow(selectedTabIndex = index, modifier = Modifier.fillMaxWidth()) {
             tabNames.forEachIndexed { i, name ->
                 Tab(text = { Text(name) }, selected = index == i, onClick = { index = i })
@@ -305,7 +289,7 @@ fun ActivityTrackerScreen(
         Column(modifier = Modifier.weight(1f)) {
             when (index) {
                 0 -> Events(activityEvents)
-                1 -> Route(routeCoordinates = lastRouteCoordinates)
+                1 -> Routes()
                 2 -> Logs()
             }
         }
@@ -361,8 +345,9 @@ private fun Logs() {
 }
 
 @Composable
-fun Route(routeCoordinates: List<Pair<Double, Double>>) {
-    if (routeCoordinates.isEmpty()) {
+fun ColumnScope.Routes() {
+    val routes = Storage.current?.getRoutePaths() ?: emptyList()
+    if (routes.isEmpty()) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -373,14 +358,15 @@ fun Route(routeCoordinates: List<Pair<Double, Double>>) {
         return
     }
 
-    val latLngList = routeCoordinates.map { LatLng(it.first, it.second) }
+    var routePath by remember { mutableStateOf(routes.first()) }
+    val latLngList = Storage.current?.getRoute(routePath)
 
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(latLngList.firstOrNull() ?: LatLng(0.0, 0.0), 15f)
+        position = CameraPosition.fromLatLngZoom(latLngList?.firstOrNull() ?: LatLng(0.0, 0.0), 15f)
     }
 
     LaunchedEffect(latLngList) {
-        if (latLngList.isNotEmpty()) {
+        if (latLngList?.isNotEmpty() == true) {
             val boundsBuilder = com.google.android.gms.maps.model.LatLngBounds.builder()
             for (latLng in latLngList) {
                 boundsBuilder.include(latLng)
@@ -394,13 +380,32 @@ fun Route(routeCoordinates: List<Pair<Double, Double>>) {
         }
     }
 
+    LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(routes) {
+            Card(
+                modifier = Modifier
+                    .clickable(onClick = { routePath = it })
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    it.substringAfterLast("/"),
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+
     GoogleMap(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.weight(2f),
         cameraPositionState = cameraPositionState,
         properties = MapProperties(isMyLocationEnabled = true),
         uiSettings = MapUiSettings(myLocationButtonEnabled = true)
     ) {
-        if (latLngList.isNotEmpty()) {
+        if (latLngList?.isNotEmpty() == true) {
             Polyline(points = latLngList)
         }
     }

@@ -58,7 +58,6 @@ class InVehicleForegroundService : Service() {
                 locationResult.lastLocation?.let { location ->
                     println("New location: ${location.latitude}, ${location.longitude}")
                     routePoints.add(Pair(location.latitude, location.longitude))
-                    saveRoute()
                 }
             }
         }
@@ -90,16 +89,21 @@ class InVehicleForegroundService : Service() {
 
         FileLogger.i("Service handleActivityTransition($activityName, $transitionName)")
         val event = "$activityName - $transitionName"
+        val previousActivity = persistingStorage.getCurrentActivity()
         persistingStorage.storeEvent(event, activityName)
 
         updateNotification(activityName)
 
         if (activityType != DetectedActivity.STILL) {
             if (transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
+                if (routePoints.isNotEmpty()) {
+                    FileLogger.d("New activity started, clearing previous route points for: $previousActivity")
+                    persistingStorage.saveRouteToFile(ArrayList(routePoints), previousActivity)
+                    routePoints.clear()
+                }
                 startLocationUpdates()
             } else if (transitionType == ActivityTransition.ACTIVITY_TRANSITION_EXIT) {
                 stopLocationUpdates()
-                stopForeground()
             }
         } else if (transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
             stopLocationUpdates()
@@ -165,14 +169,18 @@ class InVehicleForegroundService : Service() {
 
 
     private fun stopLocationUpdates() {
+        saveRoute()
         fusedLocationClient.removeLocationUpdates(locationCallback).addOnFailureListener {
-            FileLogger.e("Failed to remove location updates")
+            FileLogger.e("Failed to remove location updates: ${it.message}")
         }
+        routePoints.clear()
     }
 
     private fun saveRoute() {
-        val routeString = routePoints.joinToString(";") { "${it.first},${it.second}" }
-        persistingStorage.addRoute(routeString)
+        if (routePoints.isNotEmpty()) {
+            val currentActivity = persistingStorage.getCurrentActivity()
+            persistingStorage.saveRouteToFile(ArrayList(routePoints), currentActivity)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? {
