@@ -45,9 +45,9 @@ class InVehicleForegroundService : Service() {
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
     override fun onCreate() {
         super.onCreate()
-        FileLogger.i("Service onCreate()")
+        FileLogger.i("Service onCreate(UID=${applicationContext.applicationInfo.uid})")
         persistingStorage = PersistingStorage(this)
-        persistingStorage.storeEvent("Service created")
+        persistingStorage.storeEvent("Service created (UID=${applicationContext.applicationInfo.uid})")
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         activityRecognitionProvider = ActivityRecognitionProvider(this)
         notificationProvider = NotificationProvider(this)
@@ -189,7 +189,7 @@ class InVehicleForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        FileLogger.i("Service onDestroy()")
-        persistingStorage.storeEvent("Service destroyed")
+        FileLogger.i("Service onDestroy(UID=${applicationContext.applicationInfo.uid})")
+        persistingStorage.storeEvent("Service destroyed (UID=${applicationContext.applicationInfo.uid})")
     }
 }
