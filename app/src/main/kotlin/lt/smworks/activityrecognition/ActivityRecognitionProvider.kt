@@ -26,17 +26,16 @@ class ActivityRecognitionProvider(private val context: Context) {
             return
         }
         activityRecognitionClient.requestActivityUpdates(1000L, pendingIntent)
-            .addOnSuccessListener {
-                FileLogger.d("Successfully registered for activity updates")
-            }
             .addOnFailureListener { e ->
                 FileLogger.e("Failed to register for activity updates", e)
+            }
+            .addOnSuccessListener {
+                FileLogger.i("Successfully registered for activity updates")
             }
     }
 
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
     fun startActivityTransitionRecognitionWithBroadcast() {
-        FileLogger.d("Starting activity recognition")
         val pendingIntent = createTransitionPendingIntent()
         if (pendingIntent == null) {
             FileLogger.e("Activity transition PendingIntent could not be created or is not available")
@@ -44,14 +43,12 @@ class ActivityRecognitionProvider(private val context: Context) {
         }
 
         val request = createActivityTransitionRequest()
-        FileLogger.d("Requesting activity transition updates")
-
         activityRecognitionClient.requestActivityTransitionUpdates(request, pendingIntent)
-            .addOnSuccessListener {
-                FileLogger.d("Successfully registered for activity transition updates")
-            }
             .addOnFailureListener { e ->
                 FileLogger.e("Failed to register for activity transition updates", e)
+            }
+            .addOnSuccessListener {
+                FileLogger.i("Successfully registered for activity transition updates")
             }
     }
 
@@ -88,7 +85,10 @@ class ActivityRecognitionProvider(private val context: Context) {
         return ActivityTransitionRequest(activityTransitionList)
     }
 
-    private fun addActivity(activityTransitionList: MutableList<ActivityTransition>, activity: Int) {
+    private fun addActivity(
+        activityTransitionList: MutableList<ActivityTransition>,
+        activity: Int
+    ) {
         activityTransitionList.add(
             ActivityTransition.Builder()
                 .setActivityType(activity)

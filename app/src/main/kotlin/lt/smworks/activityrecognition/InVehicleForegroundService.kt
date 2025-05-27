@@ -26,8 +26,7 @@ class InVehicleForegroundService : Service() {
     private lateinit var persistingStorage: PersistingStorage
     private lateinit var notificationProvider: NotificationProvider
     private var routePoints = mutableListOf<Pair<Double, Double>>()
-    private lateinit var activityRecognitionProvider: ActivityRecognitionProvider
-
+    private var isActivityRecognitionActive = false
 
     companion object {
         const val ACTION_INITIALIZE_SERVICE = "ACTION_START_FOREGROUND_SERVICE"
@@ -49,7 +48,6 @@ class InVehicleForegroundService : Service() {
         persistingStorage = PersistingStorage(applicationContext)
         persistingStorage.storeEvent("Service created (UID=${applicationContext.applicationInfo.uid})")
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
-        activityRecognitionProvider = ActivityRecognitionProvider(applicationContext)
         notificationProvider = NotificationProvider(applicationContext)
         notificationProvider.createNotificationChannel()
 
@@ -67,10 +65,16 @@ class InVehicleForegroundService : Service() {
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground()
+        if (!isActivityRecognitionActive) {
+            ActivityRecognitionProvider(applicationContext).apply {
+                startActivityTransitionRecognitionWithBroadcast()
+                startActivityUpdatesWithBroadcast()
+            }
+            isActivityRecognitionActive = true
+        }
         when (intent?.action) {
             ACTION_INITIALIZE_SERVICE -> {
-                activityRecognitionProvider.startActivityTransitionRecognitionWithBroadcast()
-                activityRecognitionProvider.startActivityUpdatesWithBroadcast()
+
             }
 
             ACTION_ACTIVITY_TRANSITION_RECOGNISED -> {
