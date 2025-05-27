@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.activityrecognition"
+    namespace = "lt.smworks.activityrecognition"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.activityrecognition"
+        applicationId = "lt.smworks.activityrecognition"
         minSdk = 31
         targetSdk = 36
         versionCode = 1

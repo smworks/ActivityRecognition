@@ -1,6 +1,6 @@
 @file:Suppress("DEPRECATION")
 
-package com.example.activityrecognition
+package lt.smworks.activityrecognition
 
 import android.content.Intent
 import android.os.Bundle

@@ -1,4 +1,4 @@
-package com.example.activityrecognition
+package lt.smworks.activityrecognition
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -48,9 +48,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.example.activityrecognition.InVehicleForegroundService.Companion.ACTION_INITIALIZE_SERVICE
-import com.example.activityrecognition.PersistingStorage.Companion.KEY_CURRENT_ACTIVITY
-import com.example.activityrecognition.PersistingStorage.Companion.KEY_EVENTS
+import lt.smworks.activityrecognition.InVehicleForegroundService.Companion.ACTION_INITIALIZE_SERVICE
+import lt.smworks.activityrecognition.PersistingStorage.Companion.KEY_CURRENT_ACTIVITY
+import lt.smworks.activityrecognition.PersistingStorage.Companion.KEY_EVENTS
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng

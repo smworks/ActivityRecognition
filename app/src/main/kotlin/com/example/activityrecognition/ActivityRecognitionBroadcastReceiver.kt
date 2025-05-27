@@ -1,4 +1,4 @@
-package com.example.activityrecognition
+package lt.smworks.activityrecognition
 
 import android.content.BroadcastReceiver
 import android.content.Context

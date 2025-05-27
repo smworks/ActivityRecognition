@@ -1,4 +1,4 @@
-package com.example.activityrecognition
+package lt.smworks.activityrecognition
 
 import android.Manifest
 import android.app.NotificationManager
@@ -10,7 +10,7 @@ import android.os.IBinder
 import android.os.Looper
 import androidx.annotation.RequiresPermission
 import androidx.core.app.ActivityCompat
-import com.example.activityrecognition.NotificationProvider.Companion.NOTIFICATION_ID
+import lt.smworks.activityrecognition.NotificationProvider.Companion.NOTIFICATION_ID
 import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.location.FusedLocationProviderClient

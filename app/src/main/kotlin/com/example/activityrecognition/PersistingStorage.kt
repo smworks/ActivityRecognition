@@ -1,4 +1,4 @@
-package com.example.activityrecognition
+package lt.smworks.activityrecognition
 
 import android.content.Context
 import android.content.Context.MODE_PRIVATE
