@@ -46,11 +46,11 @@ class InVehicleForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         FileLogger.i("Service onCreate(UID=${applicationContext.applicationInfo.uid})")
-        persistingStorage = PersistingStorage(this)
+        persistingStorage = PersistingStorage(applicationContext)
         persistingStorage.storeEvent("Service created (UID=${applicationContext.applicationInfo.uid})")
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        activityRecognitionProvider = ActivityRecognitionProvider(this)
-        notificationProvider = NotificationProvider(this)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
+        activityRecognitionProvider = ActivityRecognitionProvider(applicationContext)
+        notificationProvider = NotificationProvider(applicationContext)
         notificationProvider.createNotificationChannel()
 
         locationCallback = object : LocationCallback() {
@@ -133,9 +133,9 @@ class InVehicleForegroundService : Service() {
             .setMaxUpdateDelayMillis(1000).setMinUpdateDistanceMeters(1f).build()
 
         if (ActivityCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_FINE_LOCATION
+                applicationContext, Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_COARSE_LOCATION
+                applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             FileLogger.e(

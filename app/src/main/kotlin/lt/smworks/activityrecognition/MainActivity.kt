@@ -81,11 +81,11 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
         if (fineLocationGranted && coarseLocationGranted && notificationPermissionGranted) {
             FileLogger.d("Foreground Location and Notification permissions granted")
             if (ContextCompat.checkSelfPermission(
-                    this, Manifest.permission.ACTIVITY_RECOGNITION
+                    applicationContext, Manifest.permission.ACTIVITY_RECOGNITION
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
                 if (ContextCompat.checkSelfPermission(
-                        this,
+                        applicationContext,
                         Manifest.permission.ACCESS_BACKGROUND_LOCATION
                     ) == PackageManager.PERMISSION_GRANTED
                 ) {
@@ -110,7 +110,7 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
         if (isGranted) {
             FileLogger.d("Background Location permission granted.")
             if (ContextCompat.checkSelfPermission(
-                    this, Manifest.permission.ACTIVITY_RECOGNITION
+                    applicationContext, Manifest.permission.ACTIVITY_RECOGNITION
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
                 startActivityRecognition()
@@ -136,7 +136,7 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        persistingStorage = PersistingStorage(this)
+        persistingStorage = PersistingStorage(applicationContext)
         checkAndRequestPermissions()
         loadSavedEvents()
 
@@ -161,24 +161,24 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
 
     private fun checkAndRequestPermissions() {
         val activityPermissionGranted = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACTIVITY_RECOGNITION
+            applicationContext, Manifest.permission.ACTIVITY_RECOGNITION
         ) == PackageManager.PERMISSION_GRANTED
 
         val fineLocationGranted = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_FINE_LOCATION
+            applicationContext, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
         val coarseLocationGranted = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_COARSE_LOCATION
+            applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
         val backgroundLocationGranted =
             ContextCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                applicationContext, Manifest.permission.ACCESS_BACKGROUND_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
 
         val notificationPermissionGranted =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 ContextCompat.checkSelfPermission(
-                    this, Manifest.permission.POST_NOTIFICATIONS
+                    applicationContext, Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED
             } else {
                 true
@@ -215,7 +215,7 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
     private fun startActivityRecognition() {
         if (!InVehicleForegroundService.isRunning()) {
-            startService(Intent(this, InVehicleForegroundService::class.java).apply {
+            startService(Intent(applicationContext, InVehicleForegroundService::class.java).apply {
                 action = ACTION_INITIALIZE_SERVICE
             })
         }
