@@ -88,13 +88,17 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
             }
         if (fineLocationGranted && coarseLocationGranted && notificationPermissionGranted) {
             FileLogger.d("Foreground Location and Notification permissions granted")
+            val activityPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                Manifest.permission.ACTIVITY_RECOGNITION
+            } else {
+                "com.google.android.gms.permission.ACTIVITY_RECOGNITION"
+            }
             if (ContextCompat.checkSelfPermission(
-                    applicationContext, Manifest.permission.ACTIVITY_RECOGNITION
+                    applicationContext, activityPermission
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
                 if (ContextCompat.checkSelfPermission(
-                        applicationContext,
-                        Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                        applicationContext, Manifest.permission.ACCESS_BACKGROUND_LOCATION
                     ) == PackageManager.PERMISSION_GRANTED
                 ) {
                     FileLogger.d("Background Location permission already granted.")
@@ -158,8 +162,7 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
                         color = MaterialTheme.colorScheme.background
                     ) {
                         ActivityTrackerScreen(
-                            currentActivity = _currentActivity,
-                            activityEvents = _activityEvents
+                            currentActivity = _currentActivity, activityEvents = _activityEvents
                         )
                     }
                 }
@@ -168,8 +171,14 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     private fun checkAndRequestPermissions() {
+        val activityPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            Manifest.permission.ACTIVITY_RECOGNITION
+        } else {
+            "com.google.android.gms.permission.ACTIVITY_RECOGNITION"
+        }
+
         val activityPermissionGranted = ContextCompat.checkSelfPermission(
-            applicationContext, Manifest.permission.ACTIVITY_RECOGNITION
+            applicationContext, activityPermission
         ) == PackageManager.PERMISSION_GRANTED
 
         val fineLocationGranted = ContextCompat.checkSelfPermission(
@@ -178,10 +187,13 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
         val coarseLocationGranted = ContextCompat.checkSelfPermission(
             applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
-        val backgroundLocationGranted =
+        val backgroundLocationGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ContextCompat.checkSelfPermission(
                 applicationContext, Manifest.permission.ACCESS_BACKGROUND_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
 
         val notificationPermissionGranted =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -201,11 +213,14 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
             } else {
                 FileLogger.d("Requesting background location permission.")
                 // You should ideally show a rationale to the user here
-                backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                }
             }
         } else {
             FileLogger.d("Requesting activity recognition permission.")
-            activityRecognitionPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+            activityRecognitionPermissionLauncher.launch(activityPermission)
         }
     }
 
@@ -258,8 +273,7 @@ private val Storage = compositionLocalOf<PersistingStorage?> { null }
 
 @Composable
 fun ActivityTrackerScreen(
-    currentActivity: String,
-    activityEvents: List<String>
+    currentActivity: String, activityEvents: List<String>
 ) {
     Column(
         modifier = Modifier
@@ -271,7 +285,9 @@ fun ActivityTrackerScreen(
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column(
                     modifier = Modifier
                         .padding(16.dp)
@@ -290,9 +306,14 @@ fun ActivityTrackerScreen(
                 IconButton(onClick = {
                     val applicationContext = context.applicationContext as Application
                     ActivityRecognitionProvider(applicationContext).apply {
-                        if (ActivityCompat.checkSelfPermission(
-                                context,
+                        val activityPermission =
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                                 Manifest.permission.ACTIVITY_RECOGNITION
+                            } else {
+                                "com.google.android.gms.permission.ACTIVITY_RECOGNITION"
+                            }
+                        if (ActivityCompat.checkSelfPermission(
+                                context, activityPermission
                             ) == PackageManager.PERMISSION_GRANTED
                         ) {
                             startActivityTransitionRecognitionWithBroadcast()
@@ -341,8 +362,7 @@ private fun Events(activityEvents: List<String>) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = event,
-                        modifier = Modifier.padding(16.dp)
+                        text = event, modifier = Modifier.padding(16.dp)
                     )
                 }
             }
@@ -402,8 +422,7 @@ fun ColumnScope.Routes() {
             }
             cameraPositionState.animate(
                 CameraUpdateFactory.newLatLngBounds(
-                    boundsBuilder.build(),
-                    50
+                    boundsBuilder.build(), 50
                 )
             )
         }

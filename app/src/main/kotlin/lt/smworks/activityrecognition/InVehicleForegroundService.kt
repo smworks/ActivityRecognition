@@ -6,6 +6,7 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import androidx.annotation.RequiresPermission
@@ -164,8 +165,12 @@ class InVehicleForegroundService : Service() {
         FileLogger.i("Service startForeground(). Is already started: $isServiceInForeground")
         val notification = notificationProvider.createNotification(persistingStorage.getCurrentActivity())
 
-        startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+
         if (!isServiceInForeground) {
             isServiceInForeground = true
         }
