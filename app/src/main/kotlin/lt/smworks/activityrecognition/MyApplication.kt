@@ -7,5 +7,6 @@ class MyApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         FileLogger.init(this)
+        FileLogger.i("MyApplication created")
     }
 } 

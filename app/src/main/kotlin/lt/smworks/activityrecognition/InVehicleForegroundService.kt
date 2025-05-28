@@ -74,7 +74,7 @@ class InVehicleForegroundService : Service() {
         }
         when (intent?.action) {
             ACTION_INITIALIZE_SERVICE -> {
-
+                stopForeground()
             }
 
             ACTION_ACTIVITY_TRANSITION_RECOGNISED -> {
