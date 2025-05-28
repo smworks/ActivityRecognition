@@ -124,11 +124,11 @@ class InVehicleForegroundService : Service() {
     }
 
     private fun stopForeground() {
-        FileLogger.i("Service stopForeground()")
-        stopLocationUpdates()
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
-        isServiceInForeground = false
+//        FileLogger.i("Service stopForeground()")
+//        stopLocationUpdates()
+//        stopForeground(STOP_FOREGROUND_REMOVE)
+//        stopSelf()
+//        isServiceInForeground = false
     }
 
     private fun startLocationUpdates() {
