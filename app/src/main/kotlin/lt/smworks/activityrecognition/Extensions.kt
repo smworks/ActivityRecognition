@@ -21,6 +21,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.location.DetectedActivity
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 
 fun Intent.getInfo(): String {
@@ -153,4 +156,10 @@ fun Modifier.scrollBar(state: ScrollState, scrollbarWidth: Dp = 6.dp, color: Col
             alpha = alpha
         )
     }
+}
+
+fun Long.timestampToDate(): String {
+    val date = Date(this)
+    val format = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    return format.format(date)
 }

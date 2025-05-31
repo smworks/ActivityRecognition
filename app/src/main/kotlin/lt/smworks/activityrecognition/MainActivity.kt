@@ -3,8 +3,8 @@ package lt.smworks.activityrecognition
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Application
+import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -69,15 +70,12 @@ import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import lt.smworks.activityrecognition.InVehicleForegroundService.Companion.ACTION_INITIALIZE_SERVICE
-import lt.smworks.activityrecognition.PersistingStorage.Companion.KEY_CURRENT_ACTIVITY
-import lt.smworks.activityrecognition.PersistingStorage.Companion.KEY_EVENTS
 
-class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
-    private var _currentActivity by mutableStateOf("Unknown")
-    private var _activityEvents by mutableStateOf<List<String>>(emptyList())
+class MainActivity : ComponentActivity() {
     private var _isIgnoringBatteryOptimizations by mutableStateOf(false)
 
     private lateinit var persistingStorage: PersistingStorage
+
 
     @SuppressLint("MissingPermission")
     private val requestLocationAndNotificationPermissionsLauncher = registerForActivityResult(
@@ -155,7 +153,6 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
         super.onCreate(savedInstanceState)
         persistingStorage = PersistingStorage(applicationContext)
         checkAndRequestPermissions()
-        loadSavedEvents()
 
         setContent {
             MaterialTheme {
@@ -166,9 +163,13 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
                             .systemBarsPadding(),
                         color = MaterialTheme.colorScheme.background
                     ) {
+                        val activityEvents by persistingStorage.eventObservable.collectAsState(
+                            initial = emptyList()
+                        )
+                        val currentActivity by persistingStorage.activityObservable.collectAsState(initial = null)
                         ActivityTrackerScreen(
-                            currentActivity = _currentActivity,
-                            activityEvents = _activityEvents,
+                            currentActivity = currentActivity,
+                            activityEvents = activityEvents.map { it.value },
                             isIgnoringBatteryOptimizations = _isIgnoringBatteryOptimizations
                         )
                     }
@@ -251,28 +252,13 @@ class MainActivity : ComponentActivity(), SharedPreferences.OnSharedPreferenceCh
         }
     }
 
-    private fun loadSavedEvents() {
-        val events = persistingStorage.getEvents().split("\n")
-        _activityEvents = events.filter { it.isNotBlank() }
-        _currentActivity = persistingStorage.getCurrentActivity()
-    }
-
     override fun onResume() {
         super.onResume()
-        persistingStorage.registerOnSharedPreferenceChangeListener(this)
-        loadSavedEvents()
         updateBatteryOptimizationStatus()
     }
 
     override fun onPause() {
         super.onPause()
-        persistingStorage.unregisterOnSharedPreferenceChangeListener(this)
-    }
-
-    override fun onSharedPreferenceChanged(prefs: SharedPreferences?, key: String?) {
-        if (key == KEY_EVENTS || key == KEY_CURRENT_ACTIVITY) {
-            loadSavedEvents()
-        }
     }
 
     private fun updateBatteryOptimizationStatus() {
@@ -286,7 +272,7 @@ private val Storage = compositionLocalOf<PersistingStorage?> { null }
 
 @Composable
 fun ActivityTrackerScreen(
-    currentActivity: String,
+    currentActivity: String?,
     activityEvents: List<String>,
     isIgnoringBatteryOptimizations: Boolean
 ) {
@@ -314,7 +300,7 @@ fun ActivityTrackerScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = currentActivity, style = MaterialTheme.typography.headlineMedium
+                        text = currentActivity ?: "No activity detected", style = MaterialTheme.typography.headlineMedium
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -324,35 +310,8 @@ fun ActivityTrackerScreen(
                 }
                 val context = LocalContext.current
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(onClick = {
-                        val applicationContext = context.applicationContext as Application
-                        ActivityRecognitionProvider(applicationContext).apply {
-                            val activityPermission =
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                    Manifest.permission.ACTIVITY_RECOGNITION
-                                } else {
-                                    "com.google.android.gms.permission.ACTIVITY_RECOGNITION"
-                                }
-                            if (ActivityCompat.checkSelfPermission(
-                                    context, activityPermission
-                                ) == PackageManager.PERMISSION_GRANTED
-                            ) {
-                                startActivityTransitionRecognitionWithBroadcast()
-                                startActivityUpdatesWithBroadcast()
-                            } else {
-                                FileLogger.e("Permission for activity recognition not granted")
-                            }
-                        }
-                    }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                    }
-                    IconButton(onClick = {
-                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                        intent.data = "package:${context.packageName}".toUri()
-                        context.startActivity(intent)
-                    }) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Ignore Battery Optimizations")
-                    }
+                    RefreshButton(context)
+                    BatteryOptimisationButton(context)
                 }
             }
 
@@ -372,6 +331,46 @@ fun ActivityTrackerScreen(
                 2 -> Logs()
             }
         }
+    }
+}
+
+@Composable
+private fun BatteryOptimisationButton(context: Context) {
+    IconButton(onClick = {
+        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+        intent.data = "package:${context.packageName}".toUri()
+        context.startActivity(intent)
+    }) {
+        Icon(
+            Icons.Filled.Settings,
+            contentDescription = "Ignore Battery Optimizations"
+        )
+    }
+}
+
+@Composable
+private fun RefreshButton(context: Context) {
+    IconButton(onClick = {
+        val applicationContext = context.applicationContext as Application
+        ActivityRecognitionProvider(applicationContext).apply {
+            val activityPermission =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    Manifest.permission.ACTIVITY_RECOGNITION
+                } else {
+                    "com.google.android.gms.permission.ACTIVITY_RECOGNITION"
+                }
+            if (ActivityCompat.checkSelfPermission(
+                    context, activityPermission
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                startActivityTransitionRecognitionWithBroadcast()
+                startActivityUpdatesWithBroadcast()
+            } else {
+                FileLogger.e("Permission for activity recognition not granted")
+            }
+        }
+    }) {
+        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
     }
 }
 

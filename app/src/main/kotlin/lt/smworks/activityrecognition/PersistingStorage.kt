@@ -1,9 +1,12 @@
 package lt.smworks.activityrecognition
 
 import android.content.Context
-import android.content.Context.MODE_PRIVATE
-import android.content.SharedPreferences
 import com.google.android.gms.maps.model.LatLng
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -12,34 +15,29 @@ import java.util.Locale
 class PersistingStorage(private val context: Context) {
 
     companion object {
-        private const val STORAGE_NAME = "PersistingStorage"
-        const val KEY_EVENTS = "key_events"
-        const val KEY_CURRENT_ACTIVITY = "key_current_activity"
         private const val ROUTES_DIRECTORY_NAME = "routes"
     }
 
-    private val sharedPreferences = context.getSharedPreferences(STORAGE_NAME, MODE_PRIVATE)
-    private val dateFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     private val routeFileDateFormat = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.getDefault())
+    private val database by lazy { AppDatabase.getDatabase(context) }
 
-    fun storeEvent(
-        event: String,
-        activityName: String = ""
-    ) {
-        val events = getEvents()
-        val currentTime = dateFormat.format(Date())
-        val newEvent = "$currentTime: $event"
-        val accumulatedEvents = if (events.isEmpty()) newEvent else "$newEvent\n$events"
-        sharedPreferences.edit().apply {
-            putString(KEY_EVENTS, accumulatedEvents)
-            if (activityName.isNotEmpty()) {
-                putString(KEY_CURRENT_ACTIVITY, activityName)
-            }
-            apply()
+    val eventObservable = database.eventDao().getEvents()
+    val activityObservable = database.eventDao().getLastActivity().map { it?.activity ?: "No activity detected" }
+
+    @OptIn(DelicateCoroutinesApi::class)
+    fun storeEvent(event: String, activity: String? = null) {
+        GlobalScope.launch {
+            database.eventDao().addEvent(Event(
+                timestamp = System.currentTimeMillis(),
+                value = event,
+                activity = activity
+            ))
         }
     }
 
-    fun getEvents() = sharedPreferences.getString(KEY_EVENTS, "") ?: ""
+    suspend fun getCurrentActivity(): String {
+        return database.eventDao().getLastActivity().firstOrNull()?.activity ?: "No activity detected"
+    }
 
     fun saveRouteToFile(routePoints: List<Pair<Double, Double>>, activityName: String) {
         if (routePoints.isEmpty()) {
@@ -96,15 +94,5 @@ class PersistingStorage(private val context: Context) {
         }
     }
 
-    fun getCurrentActivity(): String {
-        return sharedPreferences.getString(KEY_CURRENT_ACTIVITY, "Unknown") ?: "Unknown"
-    }
 
-    fun registerOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
-        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
-    }
-
-    fun unregisterOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
-        sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener)
-    }
 }

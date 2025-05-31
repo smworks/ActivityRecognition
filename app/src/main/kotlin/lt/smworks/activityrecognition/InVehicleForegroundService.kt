@@ -19,6 +19,9 @@ import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 class InVehicleForegroundService : Service() {
 
@@ -88,24 +91,20 @@ class InVehicleForegroundService : Service() {
         return START_STICKY
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     private fun handleActivityTransition(activityType: Int, transitionType: Int) {
+
         val activityName = activityType.getActivityName()
         val transitionName = getTransitionName(transitionType)
 
         FileLogger.i("Service handleActivityTransition($activityName, $transitionName)")
         val event = "$activityName - $transitionName"
-        val previousActivity = persistingStorage.getCurrentActivity()
-        persistingStorage.storeEvent(event, activityName)
+        persistingStorage.storeEvent(event)
 
         updateNotification(activityName)
 
         if (activityType != DetectedActivity.STILL) {
             if (transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
-                if (routePoints.isNotEmpty()) {
-                    FileLogger.d("New activity started, clearing previous route points for: $previousActivity")
-                    persistingStorage.saveRouteToFile(ArrayList(routePoints), previousActivity)
-                    routePoints.clear()
-                }
                 startLocationUpdates()
             } else if (transitionType == ActivityTransition.ACTIVITY_TRANSITION_EXIT) {
                 stopLocationUpdates()
@@ -161,12 +160,18 @@ class InVehicleForegroundService : Service() {
         notificationManager?.notify(NOTIFICATION_ID, notification)
     }
 
-    private fun startForeground() {
+    @OptIn(DelicateCoroutinesApi::class)
+    private fun startForeground() = GlobalScope.launch {
         FileLogger.i("Service startForeground(). Is already started: $isServiceInForeground")
-        val notification = notificationProvider.createNotification(persistingStorage.getCurrentActivity())
+        val notification =
+            notificationProvider.createNotification(persistingStorage.getCurrentActivity())
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            )
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
@@ -185,7 +190,8 @@ class InVehicleForegroundService : Service() {
         routePoints.clear()
     }
 
-    private fun saveRoute() {
+    @OptIn(DelicateCoroutinesApi::class)
+    private fun saveRoute() = GlobalScope.launch {
         if (routePoints.isNotEmpty()) {
             val currentActivity = persistingStorage.getCurrentActivity()
             persistingStorage.saveRouteToFile(ArrayList(routePoints), currentActivity)
