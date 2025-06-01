@@ -19,6 +19,7 @@ import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -29,8 +30,7 @@ class InVehicleForegroundService : Service() {
     private lateinit var locationCallback: LocationCallback
     private lateinit var persistingStorage: PersistingStorage
     private lateinit var notificationProvider: NotificationProvider
-    private var routePoints = mutableListOf<Pair<Double, Double>>()
-    private var isActivityRecognitionActive = false
+    private var routePoints = mutableListOf<LatLng>()
 
     companion object {
         const val ACTION_INITIALIZE_SERVICE = "ACTION_START_FOREGROUND_SERVICE"
@@ -43,12 +43,15 @@ class InVehicleForegroundService : Service() {
 
         @Volatile
         private var isServiceInForeground = false
+
+        @Volatile
+        private var isActivityRecognitionActive = false
     }
 
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
     override fun onCreate() {
         super.onCreate()
-        FileLogger.i("Service onCreate(UID=${applicationContext.applicationInfo.uid})")
+        FileLogger.i("Service onCreate(UID=${applicationContext.applicationInfo.uid}, serviceId=${this.hashCode()})")
         persistingStorage = PersistingStorage(applicationContext)
         persistingStorage.storeEvent("Service created (UID=${applicationContext.applicationInfo.uid})")
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
@@ -59,47 +62,49 @@ class InVehicleForegroundService : Service() {
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
                     println("New location: ${location.latitude}, ${location.longitude}")
-                    routePoints.add(Pair(location.latitude, location.longitude))
+                    routePoints.add(LatLng(location.latitude, location.longitude))
                 }
             }
         }
 
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground()
-        if (!isActivityRecognitionActive) {
-            ActivityRecognitionProvider(applicationContext).apply {
-                startActivityTransitionRecognitionWithBroadcast()
-                startActivityUpdatesWithBroadcast()
+        GlobalScope.launch {
+            startForeground()
+            if (!isActivityRecognitionActive) {
+                ActivityRecognitionProvider(applicationContext).apply {
+                    startActivityTransitionRecognitionWithBroadcast()
+                    startActivityUpdatesWithBroadcast()
+                }
+                isActivityRecognitionActive = true
             }
-            isActivityRecognitionActive = true
-        }
-        when (intent?.action) {
-            ACTION_INITIALIZE_SERVICE -> {
-                stopForeground()
-            }
+            when (intent?.action) {
+                ACTION_INITIALIZE_SERVICE -> {
+                    FileLogger.d("Service initialized (serviceId=${this.hashCode()})")
+                    stopForeground()
+                }
 
-            ACTION_ACTIVITY_TRANSITION_RECOGNISED -> {
-                handleActivityTransition(
-                    activityType = intent.extras?.getInt(EXTRA_ACTIVITY_TYPE) ?: 0,
-                    transitionType = intent.extras?.getInt(EXTRA_TRANSITION_TYPE) ?: 0
-                )
+                ACTION_ACTIVITY_TRANSITION_RECOGNISED -> {
+                    handleActivityTransition(
+                        activityType = intent.extras?.getInt(EXTRA_ACTIVITY_TYPE) ?: 0,
+                        transitionType = intent.extras?.getInt(EXTRA_TRANSITION_TYPE) ?: 0
+                    )
+                }
             }
         }
         return START_STICKY
     }
 
     @OptIn(DelicateCoroutinesApi::class)
-    private fun handleActivityTransition(activityType: Int, transitionType: Int) {
-
+    private suspend fun handleActivityTransition(activityType: Int, transitionType: Int) {
         val activityName = activityType.getActivityName()
-        val transitionName = getTransitionName(transitionType)
-
-        FileLogger.i("Service handleActivityTransition($activityName, $transitionName)")
+        val transitionName = transitionType.getTransitionName()
+        FileLogger.i("Service handleActivityTransition($activityName, $transitionName, serviceId=${this.hashCode()}))")
         val event = "$activityName - $transitionName"
-        persistingStorage.storeEvent(event)
+        persistingStorage.storeEvent(event, activityName)
 
         updateNotification(activityName)
 
@@ -115,16 +120,8 @@ class InVehicleForegroundService : Service() {
         }
     }
 
-    private fun getTransitionName(transitionType: Int): String {
-        return when (transitionType) {
-            ActivityTransition.ACTIVITY_TRANSITION_ENTER -> "Enter"
-            ActivityTransition.ACTIVITY_TRANSITION_EXIT -> "Exit"
-            else -> "Unknown Transition Type: $transitionType"
-        }
-    }
-
-    private fun stopForeground() {
-        FileLogger.i("Service stopForeground()")
+    private suspend fun stopForeground() {
+        FileLogger.i("Service stopForeground(serviceId=${this.hashCode()}))")
         stopLocationUpdates()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -161,7 +158,7 @@ class InVehicleForegroundService : Service() {
     }
 
     @OptIn(DelicateCoroutinesApi::class)
-    private fun startForeground() = GlobalScope.launch {
+    private suspend fun startForeground() {
         FileLogger.i("Service startForeground(). Is already started: $isServiceInForeground")
         val notification =
             notificationProvider.createNotification(persistingStorage.getCurrentActivity())
@@ -182,7 +179,7 @@ class InVehicleForegroundService : Service() {
     }
 
 
-    private fun stopLocationUpdates() {
+    private suspend fun stopLocationUpdates() {
         saveRoute()
         fusedLocationClient.removeLocationUpdates(locationCallback).addOnFailureListener {
             FileLogger.e("Failed to remove location updates: ${it.message}")
@@ -191,10 +188,10 @@ class InVehicleForegroundService : Service() {
     }
 
     @OptIn(DelicateCoroutinesApi::class)
-    private fun saveRoute() = GlobalScope.launch {
+    private suspend fun saveRoute() {
         if (routePoints.isNotEmpty()) {
             val currentActivity = persistingStorage.getCurrentActivity()
-            persistingStorage.saveRouteToFile(ArrayList(routePoints), currentActivity)
+            persistingStorage.saveRouteToDatabase(ArrayList(routePoints), currentActivity)
         }
     }
 
@@ -204,7 +201,7 @@ class InVehicleForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        FileLogger.i("Service onDestroy(UID=${applicationContext.applicationInfo.uid})")
+        FileLogger.i("Service onDestroy(UID=${applicationContext.applicationInfo.uid}, serviceId=${this.hashCode()}))")
         persistingStorage.storeEvent("Service destroyed (UID=${applicationContext.applicationInfo.uid})")
     }
 }

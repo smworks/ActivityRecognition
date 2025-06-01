@@ -2,7 +2,9 @@
 
 package lt.smworks.activityrecognition
 
+import android.Manifest
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import androidx.compose.animation.core.animateFloatAsState
@@ -20,6 +22,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.DetectedActivity
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -91,6 +94,23 @@ fun Int.getActivityName(): String {
         DetectedActivity.TILTING -> "Tilting"
         else -> "Unknown Activity Type: $this"
     }
+}
+
+fun Int.getTransitionName(): String {
+    return when (this) {
+        ActivityTransition.ACTIVITY_TRANSITION_ENTER -> "Enter"
+        ActivityTransition.ACTIVITY_TRANSITION_EXIT -> "Exit"
+        else -> "Unknown Transition Type: $this"
+    }
+}
+
+fun getActivityRecognitionPermissionType(): String {
+    val activityPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        Manifest.permission.ACTIVITY_RECOGNITION
+    } else {
+        "com.google.android.gms.permission.ACTIVITY_RECOGNITION"
+    }
+    return activityPermission
 }
 
 @Composable

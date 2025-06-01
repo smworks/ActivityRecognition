@@ -5,7 +5,9 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -13,7 +15,6 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,7 +56,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
@@ -91,11 +91,7 @@ class MainActivity : ComponentActivity() {
             }
         if (fineLocationGranted && coarseLocationGranted && notificationPermissionGranted) {
             FileLogger.d("Foreground Location and Notification permissions granted")
-            val activityPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                Manifest.permission.ACTIVITY_RECOGNITION
-            } else {
-                "com.google.android.gms.permission.ACTIVITY_RECOGNITION"
-            }
+            val activityPermission = getActivityRecognitionPermissionType()
             if (ContextCompat.checkSelfPermission(
                     applicationContext, activityPermission
                 ) == PackageManager.PERMISSION_GRANTED
@@ -122,10 +118,10 @@ class MainActivity : ComponentActivity() {
     private val backgroundLocationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) {
+        if (isGranted || Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
             FileLogger.d("Background Location permission granted.")
             if (ContextCompat.checkSelfPermission(
-                    applicationContext, Manifest.permission.ACTIVITY_RECOGNITION
+                    applicationContext, getActivityRecognitionPermissionType()
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
                 startActivityRecognition()
@@ -153,6 +149,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         persistingStorage = PersistingStorage(applicationContext)
         checkAndRequestPermissions()
+        lockScreenOrientation()
 
         setContent {
             MaterialTheme {
@@ -166,10 +163,12 @@ class MainActivity : ComponentActivity() {
                         val activityEvents by persistingStorage.eventObservable.collectAsState(
                             initial = emptyList()
                         )
-                        val currentActivity by persistingStorage.activityObservable.collectAsState(initial = null)
+                        val currentActivity by persistingStorage.activityObservable.collectAsState(
+                            initial = null
+                        )
                         ActivityTrackerScreen(
                             currentActivity = currentActivity,
-                            activityEvents = activityEvents.map { it.value },
+                            activityEvents = activityEvents.map { it.timestamp.timestampToDate() + " - " + it.value },
                             isIgnoringBatteryOptimizations = _isIgnoringBatteryOptimizations
                         )
                     }
@@ -178,12 +177,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun checkAndRequestPermissions() {
-        val activityPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            Manifest.permission.ACTIVITY_RECOGNITION
-        } else {
-            "com.google.android.gms.permission.ACTIVITY_RECOGNITION"
+    @SuppressLint("SourceLockedOrientationActivity")
+    private fun lockScreenOrientation() {
+        val initialOrientation = resources.configuration.orientation
+        if (initialOrientation == Configuration.ORIENTATION_PORTRAIT) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        } else if (initialOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
         }
+    }
+
+    private fun checkAndRequestPermissions() {
+        val activityPermission = getActivityRecognitionPermissionType()
 
         val activityPermissionGranted = ContextCompat.checkSelfPermission(
             applicationContext, activityPermission
@@ -222,7 +227,7 @@ class MainActivity : ComponentActivity() {
                 FileLogger.d("Requesting background location permission.")
                 // You should ideally show a rationale to the user here
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                 }
             }
@@ -242,10 +247,9 @@ class MainActivity : ComponentActivity() {
         requestLocationAndNotificationPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
     }
 
-
-    @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
     private fun startActivityRecognition() {
         if (!InVehicleForegroundService.isRunning()) {
+            FileLogger.d("Creating InVehicleForegroundService instance from MainActivity")
             startService(Intent(applicationContext, InVehicleForegroundService::class.java).apply {
                 action = ACTION_INITIALIZE_SERVICE
             })
@@ -300,7 +304,8 @@ fun ActivityTrackerScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = currentActivity ?: "No activity detected", style = MaterialTheme.typography.headlineMedium
+                        text = currentActivity ?: "No activity detected",
+                        style = MaterialTheme.typography.headlineMedium
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -353,12 +358,7 @@ private fun RefreshButton(context: Context) {
     IconButton(onClick = {
         val applicationContext = context.applicationContext as Application
         ActivityRecognitionProvider(applicationContext).apply {
-            val activityPermission =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    Manifest.permission.ACTIVITY_RECOGNITION
-                } else {
-                    "com.google.android.gms.permission.ACTIVITY_RECOGNITION"
-                }
+            val activityPermission = getActivityRecognitionPermissionType()
             if (ActivityCompat.checkSelfPermission(
                     context, activityPermission
                 ) == PackageManager.PERMISSION_GRANTED
@@ -423,8 +423,11 @@ private fun Logs() {
 
 @Composable
 fun ColumnScope.Routes() {
-    val routes = Storage.current?.getRoutePaths() ?: emptyList()
-    if (routes.isEmpty()) {
+    val storage = Storage.current
+    val routesWithPoints by storage?.getAllRoutesWithPoints()?.collectAsState(initial = emptyList())
+        ?: remember { mutableStateOf(emptyList()) }
+
+    if (routesWithPoints.isEmpty()) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -435,8 +438,14 @@ fun ColumnScope.Routes() {
         return
     }
 
-    var routePath by remember { mutableStateOf(routes.first()) }
-    val latLngList = Storage.current?.getRoute(routePath)
+    var selectedRouteWithPoints by remember { mutableStateOf(routesWithPoints.firstOrNull()) }
+    LaunchedEffect(routesWithPoints) {
+        if (selectedRouteWithPoints == null || !routesWithPoints.contains(selectedRouteWithPoints)) {
+            selectedRouteWithPoints = routesWithPoints.firstOrNull()
+        }
+    }
+
+    val latLngList = selectedRouteWithPoints?.points?.map { LatLng(it.latitude, it.longitude) }
 
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(latLngList?.firstOrNull() ?: LatLng(0.0, 0.0), 15f)
@@ -456,30 +465,30 @@ fun ColumnScope.Routes() {
         }
     }
 
-    LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(routes) {
-            Card(
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(0.3f)
+    ) {
+        items(routesWithPoints) { routeItem ->
+            Text(
+                text = "${routeItem.route.activityName} - ${routeItem.route.timestamp.timestampToDate()}",
                 modifier = Modifier
-                    .clickable(onClick = { routePath = it })
                     .fillMaxWidth()
-            ) {
-                Text(
-                    it.substringAfterLast("/"),
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
+                    .clickable { selectedRouteWithPoints = routeItem }
+                    .padding(8.dp),
+                color = if (selectedRouteWithPoints == routeItem) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 
     GoogleMap(
-        modifier = Modifier.weight(2f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(0.7f),
         cameraPositionState = cameraPositionState,
         properties = MapProperties(isMyLocationEnabled = true),
-        uiSettings = MapUiSettings(myLocationButtonEnabled = true)
+        uiSettings = MapUiSettings(zoomControlsEnabled = true, myLocationButtonEnabled = true)
     ) {
         if (latLngList?.isNotEmpty() == true) {
             Polyline(points = latLngList)
