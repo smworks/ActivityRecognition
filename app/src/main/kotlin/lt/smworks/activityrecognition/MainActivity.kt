@@ -96,7 +96,7 @@ class MainActivity : ComponentActivity() {
                     applicationContext, activityPermission
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
-                if (ContextCompat.checkSelfPermission(
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || ContextCompat.checkSelfPermission(
                         applicationContext, Manifest.permission.ACCESS_BACKGROUND_LOCATION
                     ) == PackageManager.PERMISSION_GRANTED
                 ) {
@@ -118,7 +118,7 @@ class MainActivity : ComponentActivity() {
     private val backgroundLocationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted || Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+        if (isGranted) {
             FileLogger.d("Background Location permission granted.")
             if (ContextCompat.checkSelfPermission(
                     applicationContext, getActivityRecognitionPermissionType()
@@ -339,6 +339,7 @@ fun ActivityTrackerScreen(
     }
 }
 
+@SuppressLint("BatteryLife")
 @Composable
 private fun BatteryOptimisationButton(context: Context) {
     IconButton(onClick = {

@@ -60,8 +60,4 @@ class PersistingStorage(private val context: Context) {
     fun getAllRoutesWithPoints(): Flow<List<RouteWithPoints>> {
         return database.routeDao().getAllRoutesWithPoints()
     }
-
-    suspend fun getRouteWithPointsById(routeId: Long): RouteWithPoints? {
-        return database.routeDao().getRouteWithPointsById(routeId)
-    }
 }

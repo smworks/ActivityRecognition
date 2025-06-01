@@ -25,7 +25,6 @@ data class RoutePoint(
     val pointTimestamp: Long // Optional: if you want to store timestamp for each point
 )
 
-// This class will be used to retrieve a Route with its points
 data class RouteWithPoints(
     @Embedded val route: Route,
     @Relation(
@@ -38,14 +37,11 @@ data class RouteWithPoints(
 @Dao
 interface RouteDao {
     @Insert
-    suspend fun insertRoute(route: Route): Long // Return the id of the inserted route
+    suspend fun insertRoute(route: Route): Long
 
     @Insert
     suspend fun insertRoutePoints(points: List<RoutePoint>)
 
     @Query("SELECT * FROM routes ORDER BY timestamp DESC")
-    fun getAllRoutesWithPoints(): Flow<List<RouteWithPoints>> // Changed to get RouteWithPoints
-
-    @Query("SELECT * FROM routes WHERE id = :routeId")
-    suspend fun getRouteWithPointsById(routeId: Long): RouteWithPoints?
+    fun getAllRoutesWithPoints(): Flow<List<RouteWithPoints>>
 } 
