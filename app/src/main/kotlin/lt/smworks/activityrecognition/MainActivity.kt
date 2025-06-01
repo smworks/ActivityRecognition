@@ -250,7 +250,7 @@ class MainActivity : ComponentActivity() {
     private fun startActivityRecognition() {
         if (!InVehicleForegroundService.isRunning()) {
             FileLogger.d("Creating InVehicleForegroundService instance from MainActivity")
-            startService(Intent(applicationContext, InVehicleForegroundService::class.java).apply {
+            startForegroundService(Intent(applicationContext, InVehicleForegroundService::class.java).apply {
                 action = ACTION_INITIALIZE_SERVICE
             })
         }
