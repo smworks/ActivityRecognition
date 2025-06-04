@@ -1,14 +1,13 @@
 package lt.smworks.activityrecognition
 
+import ActivityRecognitionEvent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.ActivityTransitionResult
 import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import java.io.Serializable
 
 class ActivityRecognitionBroadcastReceiver : BroadcastReceiver() {
 
@@ -18,28 +17,22 @@ class ActivityRecognitionBroadcastReceiver : BroadcastReceiver() {
             val result = ActivityTransitionResult.extractResult(intent)
             FileLogger.d("Received Activity Transition broadcast: ${result?.transitionEvents.toString()}}")
             result?.let {
-                GlobalScope.launch {
-                    for (event in it.transitionEvents) {
-                        val serviceIntent =
-                            Intent(context, InVehicleForegroundService::class.java).apply {
-                                action =
-                                    InVehicleForegroundService.ACTION_ACTIVITY_TRANSITION_RECOGNISED
-                                putExtra(
-                                    InVehicleForegroundService.EXTRA_ACTIVITY_TYPE,
-                                    event.activityType
+                val serviceIntent =
+                    Intent(context, InVehicleForegroundService::class.java).apply {
+                        action = InVehicleForegroundService.ACTION_ACTIVITY_TRANSITION_RECOGNISED
+                        putExtra(
+                            InVehicleForegroundService.EXTRA_TRANSITION_EVENTS,
+                            it.transitionEvents.map { transition ->
+                                ActivityRecognitionEvent(
+                                    transition.activityType,
+                                    transition.transitionType
                                 )
-                                putExtra(
-                                    InVehicleForegroundService.EXTRA_TRANSITION_TYPE,
-                                    event.transitionType
-                                )
-                            }
-                        try {
-                            context.startForegroundService(serviceIntent)
-                        } catch (t: Throwable) {
-                            FileLogger.e("Failed to start service for activity transition: ${t.message}")
-                        }
-                        delay(500)
+                            } as Serializable)
                     }
+                try {
+                    context.startForegroundService(serviceIntent)
+                } catch (t: Throwable) {
+                    FileLogger.e("Failed to start service for activity transition: ${t.message}")
                 }
             }
         } else if (ActivityRecognitionResult.hasResult(intent)) {

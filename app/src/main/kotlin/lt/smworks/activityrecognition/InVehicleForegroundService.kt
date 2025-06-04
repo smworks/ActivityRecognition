@@ -1,5 +1,6 @@
 package lt.smworks.activityrecognition
 
+import ActivityRecognitionEvent
 import android.Manifest
 import android.app.NotificationManager
 import android.app.Service
@@ -11,7 +12,6 @@ import android.os.IBinder
 import android.os.Looper
 import androidx.annotation.RequiresPermission
 import androidx.core.app.ActivityCompat
-import lt.smworks.activityrecognition.NotificationProvider.Companion.NOTIFICATION_ID
 import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -23,6 +23,7 @@ import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import lt.smworks.activityrecognition.NotificationProvider.Companion.NOTIFICATION_ID
 
 class InVehicleForegroundService : Service() {
 
@@ -35,8 +36,7 @@ class InVehicleForegroundService : Service() {
     companion object {
         const val ACTION_INITIALIZE_SERVICE = "ACTION_START_FOREGROUND_SERVICE"
         const val ACTION_ACTIVITY_TRANSITION_RECOGNISED = "ACTION_ACTIVITY_TRANSITION_RECOGNISED"
-        const val EXTRA_ACTIVITY_TYPE = "extra_activity_type"
-        const val EXTRA_TRANSITION_TYPE = "extra_transition_type"
+        const val EXTRA_TRANSITION_EVENTS = "extra_transition_events"
 
 
         fun isRunning() = isServiceInForeground
@@ -88,33 +88,38 @@ class InVehicleForegroundService : Service() {
                 }
 
                 ACTION_ACTIVITY_TRANSITION_RECOGNISED -> {
-                    handleActivityTransition(
-                        activityType = intent.extras?.getInt(EXTRA_ACTIVITY_TYPE) ?: 0,
-                        transitionType = intent.extras?.getInt(EXTRA_TRANSITION_TYPE) ?: 0
-                    )
+                    val transitionEvents = intent.getActivityRecognitionEvents()
+                    handleActivityTransition(transitionEvents ?: emptyList())
                 }
             }
         }
         return START_STICKY
     }
 
+
+
     @OptIn(DelicateCoroutinesApi::class)
-    private suspend fun handleActivityTransition(activityType: Int, transitionType: Int) {
-        val activityName = activityType.getActivityName()
-        val transitionName = transitionType.getTransitionName()
+    private suspend fun handleActivityTransition(recognizedTransitions: List<ActivityRecognitionEvent>) {
+        val lastActivity = recognizedTransitions.lastOrNull()
+        if (lastActivity == null) {
+            FileLogger.w("No activity transition events found!!!")
+            return
+        }
+        val activityName = lastActivity.activityType.getActivityName()
+        val transitionName = lastActivity.transitionType.getTransitionName()
         FileLogger.i("Service handleActivityTransition($activityName, $transitionName, serviceId=${this.hashCode()}))")
         val event = "$activityName - $transitionName"
         persistingStorage.storeEvent(event, activityName)
 
         updateNotification(activityName)
 
-        if (activityType != DetectedActivity.STILL) {
-            if (transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
+        if (lastActivity.activityType != DetectedActivity.STILL) {
+            if (lastActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
                 startLocationUpdates()
-            } else if (transitionType == ActivityTransition.ACTIVITY_TRANSITION_EXIT) {
+            } else if (lastActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_EXIT) {
                 stopLocationUpdates()
             }
-        } else if (transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
+        } else if (lastActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
             stopLocationUpdates()
             stopForeground()
         }

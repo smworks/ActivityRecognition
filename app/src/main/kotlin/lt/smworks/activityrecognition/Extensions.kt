@@ -2,6 +2,7 @@
 
 package lt.smworks.activityrecognition
 
+import ActivityRecognitionEvent
 import android.Manifest
 import android.content.Intent
 import android.os.Build
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.DetectedActivity
+import lt.smworks.activityrecognition.InVehicleForegroundService.Companion.EXTRA_TRANSITION_EVENTS
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -182,4 +184,19 @@ fun Long.timestampToDate(): String {
     val date = Date(this)
     val format = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     return format.format(date)
+}
+
+fun Intent.getActivityRecognitionEvents(): List<ActivityRecognitionEvent>? {
+    val transitionEvents: List<ActivityRecognitionEvent>? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            @Suppress("UNCHECKED_CAST")
+            getSerializableExtra(
+                EXTRA_TRANSITION_EVENTS,
+                java.util.ArrayList::class.java
+            ) as? ArrayList<ActivityRecognitionEvent>
+        } else {
+            @Suppress("DEPRECATION", "UNCHECKED_CAST")
+            getSerializableExtra(EXTRA_TRANSITION_EVENTS) as? List<ActivityRecognitionEvent>
+        }
+    return transitionEvents
 }
