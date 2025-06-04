@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -64,6 +66,8 @@ import androidx.core.net.toUri
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
+import com.google.maps.android.compose.CameraPositionState
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
@@ -163,15 +167,12 @@ class MainActivity : ComponentActivity() {
                             .systemBarsPadding(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        val activityEvents by persistingStorage.eventObservable.collectAsState(
-                            initial = emptyList()
-                        )
+
                         val currentActivity by persistingStorage.activityObservable.collectAsState(
                             initial = null
                         )
                         ActivityTrackerScreen(
                             currentActivity = currentActivity,
-                            activityEvents = activityEvents.map { it.timestamp.timestampToDate() + " - " + it.value },
                             isIgnoringBatteryOptimizations = _isIgnoringBatteryOptimizations
                         )
                     }
@@ -253,9 +254,13 @@ class MainActivity : ComponentActivity() {
     private fun startActivityRecognition() {
         if (!InVehicleForegroundService.isRunning()) {
             FileLogger.d("Creating InVehicleForegroundService instance from MainActivity")
-            startForegroundService(Intent(applicationContext, InVehicleForegroundService::class.java).apply {
-                action = ACTION_INITIALIZE_SERVICE
-            })
+            startForegroundService(
+                Intent(
+                    applicationContext,
+                    InVehicleForegroundService::class.java
+                ).apply {
+                    action = ACTION_INITIALIZE_SERVICE
+                })
         }
     }
 
@@ -280,7 +285,6 @@ private val Storage = compositionLocalOf<PersistingStorage?> { null }
 @Composable
 fun ActivityTrackerScreen(
     currentActivity: String?,
-    activityEvents: List<String>,
     isIgnoringBatteryOptimizations: Boolean
 ) {
     Column(
@@ -334,7 +338,7 @@ fun ActivityTrackerScreen(
         }
         Column(modifier = Modifier.weight(1f)) {
             when (index) {
-                0 -> Events(activityEvents)
+                0 -> Events()
                 1 -> Routes()
                 2 -> Logs()
             }
@@ -382,7 +386,22 @@ private fun RefreshButton(context: Context) {
 }
 
 @Composable
-private fun Events(activityEvents: List<String>) {
+private fun Events() {
+    val storage = Storage.current ?: return
+    val activityEvents = storage.eventObservable.collectAsState(initial = null).value
+
+    if (activityEvents == null) {
+        CenteredContent {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    EventList(activityEvents)
+}
+
+@Composable
+private fun EventList(activityEvents: List<Event>) {
     val listState = rememberLazyListState()
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -397,13 +416,16 @@ private fun Events(activityEvents: List<String>) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = event, modifier = Modifier.padding(16.dp)
+                        text = event.timestamp.timestampToDate() + " - " + event.value,
+                        modifier = Modifier.padding(16.dp)
                     )
                 }
             }
             if (activityEvents.isEmpty()) {
                 item {
-                    Text("No activity events yet.", modifier = Modifier.padding(16.dp))
+                    CenteredContent {
+                        Text("No activity events yet.", modifier = Modifier.padding(16.dp))
+                    }
                 }
             }
         }
@@ -431,24 +453,32 @@ private fun Logs() {
 @Composable
 fun ColumnScope.Routes() {
     val storage = Storage.current
-    val routesWithPoints by storage?.getAllRoutesWithPoints()?.collectAsState(initial = emptyList())
+    val routesWithPoints by storage?.getAllRoutesWithPoints()?.collectAsState(initial = null)
         ?: remember { mutableStateOf(emptyList()) }
 
-    if (routesWithPoints.isEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp), contentAlignment = Alignment.Center
-        ) {
+    if (routesWithPoints == null) {
+        CenteredContent {
+            CircularProgressIndicator(modifier = Modifier.size(64.dp))
+        }
+        return
+    }
+
+    if (routesWithPoints?.isEmpty() == true) {
+        CenteredContent {
             Text("No route data recorded.")
         }
         return
     }
 
-    var selectedRouteWithPoints by remember { mutableStateOf(routesWithPoints.firstOrNull()) }
+    RouteContent(routesWithPoints)
+}
+
+@Composable
+private fun ColumnScope.RouteContent(routesWithPoints: List<RouteWithPoints>?) {
+    var selectedRouteWithPoints by remember { mutableStateOf(routesWithPoints?.firstOrNull()) }
     LaunchedEffect(routesWithPoints) {
-        if (selectedRouteWithPoints == null || !routesWithPoints.contains(selectedRouteWithPoints)) {
-            selectedRouteWithPoints = routesWithPoints.firstOrNull()
+        if (selectedRouteWithPoints == null || routesWithPoints?.contains(selectedRouteWithPoints) == false) {
+            selectedRouteWithPoints = routesWithPoints?.firstOrNull()
         }
     }
 
@@ -460,7 +490,7 @@ fun ColumnScope.Routes() {
 
     LaunchedEffect(latLngList) {
         if (latLngList?.isNotEmpty() == true) {
-            val boundsBuilder = com.google.android.gms.maps.model.LatLngBounds.builder()
+            val boundsBuilder = LatLngBounds.builder()
             for (latLng in latLngList) {
                 boundsBuilder.include(latLng)
             }
@@ -477,7 +507,7 @@ fun ColumnScope.Routes() {
             .fillMaxWidth()
             .weight(0.3f)
     ) {
-        items(routesWithPoints) { routeItem ->
+        items(routesWithPoints ?: emptyList()) { routeItem ->
             Text(
                 text = "${routeItem.route.activityName} - ${routeItem.route.timestamp.timestampToDate()}",
                 modifier = Modifier
@@ -489,6 +519,14 @@ fun ColumnScope.Routes() {
         }
     }
 
+    Map(cameraPositionState, latLngList)
+}
+
+@Composable
+private fun ColumnScope.Map(
+    cameraPositionState: CameraPositionState,
+    latLngList: List<LatLng>?
+) {
     GoogleMap(
         modifier = Modifier
             .fillMaxWidth()
@@ -500,5 +538,16 @@ fun ColumnScope.Routes() {
         if (latLngList?.isNotEmpty() == true) {
             Polyline(points = latLngList)
         }
+    }
+}
+
+@Composable
+private fun CenteredContent(content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp), contentAlignment = Alignment.Center
+    ) {
+        content()
     }
 }
