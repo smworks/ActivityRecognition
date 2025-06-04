@@ -14,38 +14,47 @@ class ActivityRecognitionBroadcastReceiver : BroadcastReceiver() {
     @OptIn(DelicateCoroutinesApi::class)
     override fun onReceive(context: Context, intent: Intent) {
         if (ActivityTransitionResult.hasResult(intent)) {
-            val result = ActivityTransitionResult.extractResult(intent)
-            FileLogger.d("Received Activity Transition broadcast: ${result?.transitionEvents.toString()}}")
-            result?.let {
-                val serviceIntent =
-                    Intent(context, InVehicleForegroundService::class.java).apply {
-                        action = InVehicleForegroundService.ACTION_ACTIVITY_TRANSITION_RECOGNISED
-                        putExtra(
-                            InVehicleForegroundService.EXTRA_TRANSITION_EVENTS,
-                            it.transitionEvents.map { transition ->
-                                ActivityRecognitionEvent(
-                                    transition.activityType,
-                                    transition.transitionType
-                                )
-                            } as Serializable)
-                    }
-                try {
-                    context.startForegroundService(serviceIntent)
-                } catch (t: Throwable) {
-                    FileLogger.e("Failed to start service for activity transition: ${t.message}")
-                }
-            }
+            handleActivityTransition(intent, context)
         } else if (ActivityRecognitionResult.hasResult(intent)) {
-            val result = ActivityRecognitionResult.extractResult(intent)
-            println("Received Activity Recognition broadcast: ${result?.probableActivities.toString()}")
-            result?.let {
-                val detectedActivities = it.probableActivities
-                for (activity in detectedActivities) {
-                    handleActivity(activity.type, activity.confidence)
-                }
-            }
+            handleActivityRecognition(intent)
         } else {
             FileLogger.w("Received an unrecognized intent action: ${intent.getInfo()}")
+        }
+    }
+
+    private fun handleActivityRecognition(intent: Intent) {
+        val result = ActivityRecognitionResult.extractResult(intent)
+        println("Received Activity Recognition broadcast: ${result?.probableActivities.toString()}")
+        if (result == null) {
+            return
+        }
+        val detectedActivities = result.probableActivities
+        for (activity in detectedActivities) {
+            handleActivity(activity.type, activity.confidence)
+        }
+    }
+
+    private fun handleActivityTransition(intent: Intent, context: Context) {
+        val result = ActivityTransitionResult.extractResult(intent)
+        FileLogger.d("Received Activity Transition broadcast: ${result?.transitionEvents.toString()}}")
+        if (result == null) {
+            return
+        }
+        val serviceIntent = Intent(context, InVehicleForegroundService::class.java).apply {
+            action = InVehicleForegroundService.ACTION_ACTIVITY_TRANSITION_RECOGNISED
+            putExtra(
+                InVehicleForegroundService.EXTRA_TRANSITION_EVENTS,
+                result.transitionEvents.map { transition ->
+                    ActivityRecognitionEvent(
+                        transition.activityType,
+                        transition.transitionType
+                    )
+                } as Serializable)
+        }
+        try {
+            context.startForegroundService(serviceIntent)
+        } catch (t: Throwable) {
+            FileLogger.e("Failed to start service for activity transition: ${t.message}")
         }
     }
 
