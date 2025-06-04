@@ -75,11 +75,11 @@ class InVehicleForegroundService : Service() {
         GlobalScope.launch {
             startForeground()
             if (!isActivityRecognitionActive) {
+                isActivityRecognitionActive = true
                 ActivityRecognitionProvider(applicationContext).apply {
                     startActivityTransitionRecognitionWithBroadcast()
                     startActivityUpdatesWithBroadcast()
                 }
-                isActivityRecognitionActive = true
             }
             when (intent?.action) {
                 ACTION_INITIALIZE_SERVICE -> {
@@ -95,7 +95,6 @@ class InVehicleForegroundService : Service() {
         }
         return START_STICKY
     }
-
 
 
     @OptIn(DelicateCoroutinesApi::class)
@@ -129,6 +128,7 @@ class InVehicleForegroundService : Service() {
         FileLogger.i("Service stopForeground(serviceId=${this.hashCode()}))")
         stopLocationUpdates()
         stopForeground(STOP_FOREGROUND_REMOVE)
+        notificationProvider.removeNotification()
         stopSelf()
         isServiceInForeground = false
     }
@@ -157,6 +157,7 @@ class InVehicleForegroundService : Service() {
     }
 
     fun updateNotification(activityName: String) {
+        FileLogger.i("Service updateNotification(activityName=$activityName)")
         val notification = notificationProvider.createNotification(activityName)
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager?.notify(NOTIFICATION_ID, notification)
