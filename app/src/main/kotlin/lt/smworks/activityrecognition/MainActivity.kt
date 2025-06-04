@@ -168,11 +168,7 @@ class MainActivity : ComponentActivity() {
                         color = MaterialTheme.colorScheme.background
                     ) {
 
-                        val currentActivity by persistingStorage.activityObservable.collectAsState(
-                            initial = null
-                        )
                         ActivityTrackerScreen(
-                            currentActivity = currentActivity,
                             isIgnoringBatteryOptimizations = _isIgnoringBatteryOptimizations
                         )
                     }
@@ -283,51 +279,13 @@ class MainActivity : ComponentActivity() {
 private val Storage = compositionLocalOf<PersistingStorage?> { null }
 
 @Composable
-fun ActivityTrackerScreen(
-    currentActivity: String?,
-    isIgnoringBatteryOptimizations: Boolean
-) {
+fun ActivityTrackerScreen(isIgnoringBatteryOptimizations: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Current Activity", style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = currentActivity ?: "No activity detected",
-                        style = MaterialTheme.typography.headlineMedium
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = if (isIgnoringBatteryOptimizations) "(Ignoring Battery Optimizations)" else "(Not Ignoring Battery Optimizations)",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                val context = LocalContext.current
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    RefreshButton(context)
-                    BatteryOptimisationButton(context)
-                }
-            }
-
-        }
+        CurrentActivityCard(isIgnoringBatteryOptimizations)
 
         var index by remember { mutableIntStateOf(0) }
         val tabNames = listOf("Activity History", "Routes", "Logs")
@@ -343,6 +301,48 @@ fun ActivityTrackerScreen(
                 2 -> Logs()
             }
         }
+    }
+}
+
+@Composable
+private fun CurrentActivityCard(isIgnoringBatteryOptimizations: Boolean) {
+    val storage = Storage.current ?: return
+    val currentActivity by storage.activityObservable.collectAsState(initial = null)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Current Activity", style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = currentActivity ?: "No activity detected",
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (isIgnoringBatteryOptimizations) "(Ignoring Battery Optimizations)" else "(Not Ignoring Battery Optimizations)",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            val context = LocalContext.current
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                RefreshButton(context)
+                BatteryOptimisationButton(context)
+            }
+        }
+
     }
 }
 
