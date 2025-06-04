@@ -9,6 +9,8 @@ import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.location.ActivityTransitionRequest
+import kotlin.coroutines.suspendCoroutine
+import kotlin.coroutines.resume
 
 class ActivityRecognitionProvider(private val context: Context) {
     companion object {
@@ -19,36 +21,42 @@ class ActivityRecognitionProvider(private val context: Context) {
     private val activityRecognitionClient = ActivityRecognition.getClient(context)
 
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
-    fun startActivityUpdatesWithBroadcast() {
+    suspend fun startActivityUpdatesWithBroadcast(): Boolean = suspendCoroutine { continuation ->
         val pendingIntent = createRecognitionPendingIntent()
         if (pendingIntent == null) {
             FileLogger.e("Activity update PendingIntent could not be created or is not available")
-            return
+            continuation.resume(false)
+            return@suspendCoroutine
         }
         activityRecognitionClient.requestActivityUpdates(1000L, pendingIntent)
             .addOnFailureListener { e ->
                 FileLogger.e("Failed to register for activity updates", e)
+                continuation.resume(false)
             }
             .addOnSuccessListener {
                 FileLogger.i("Successfully registered for activity updates")
+                continuation.resume(true)
             }
     }
 
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
-    fun startActivityTransitionRecognitionWithBroadcast() {
+    suspend fun startActivityTransitionRecognitionWithBroadcast(): Boolean = suspendCoroutine { continuation ->
         val pendingIntent = createTransitionPendingIntent()
         if (pendingIntent == null) {
             FileLogger.e("Activity transition PendingIntent could not be created or is not available")
-            return
+            continuation.resume(false)
+            return@suspendCoroutine
         }
 
         val request = createActivityTransitionRequest()
         activityRecognitionClient.requestActivityTransitionUpdates(request, pendingIntent)
             .addOnFailureListener { e ->
                 FileLogger.e("Failed to register for activity transition updates", e)
+                continuation.resume(false)
             }
             .addOnSuccessListener {
                 FileLogger.i("Successfully registered for activity transition updates")
+                continuation.resume(true)
             }
     }
 

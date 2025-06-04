@@ -69,6 +69,9 @@ import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import lt.smworks.activityrecognition.InVehicleForegroundService.Companion.ACTION_INITIALIZE_SERVICE
 
 class MainActivity : ComponentActivity() {
@@ -354,6 +357,7 @@ private fun BatteryOptimisationButton(context: Context) {
     }
 }
 
+@OptIn(DelicateCoroutinesApi::class)
 @Composable
 private fun RefreshButton(context: Context) {
     IconButton(onClick = {
@@ -364,8 +368,10 @@ private fun RefreshButton(context: Context) {
                     context, activityPermission
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
-                startActivityTransitionRecognitionWithBroadcast()
-                startActivityUpdatesWithBroadcast()
+                GlobalScope.launch {
+                    startActivityTransitionRecognitionWithBroadcast()
+                    startActivityUpdatesWithBroadcast()
+                }
             } else {
                 FileLogger.e("Permission for activity recognition not granted")
             }
