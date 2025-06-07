@@ -45,8 +45,20 @@ class NotificationProvider(private val context: Context) {
         manager?.createNotificationChannel(serviceChannel)
     }
 
-    fun removeNotification() {
+    private fun cancelNotification() {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.cancel(NOTIFICATION_ID)
+    }
+
+    fun destroyNotification() {
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.deleteNotificationChannel(NOTIFICATION_CHANNEL_ID)
+    }
+
+    fun updateNotification(activityName: String) {
+        cancelNotification()
+        val notification = createNotification(activityName)
+        val notificationManager = context.getSystemService(NotificationManager::class.java)
+        notificationManager?.notify(NOTIFICATION_ID, notification)
     }
 }

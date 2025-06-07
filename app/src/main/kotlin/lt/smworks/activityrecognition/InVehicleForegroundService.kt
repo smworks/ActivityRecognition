@@ -2,7 +2,6 @@ package lt.smworks.activityrecognition
 
 import ActivityRecognitionEvent
 import android.Manifest
-import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -111,7 +110,8 @@ class InVehicleForegroundService : Service() {
         val event = "$activityName - $transitionName"
         persistingStorage.storeEvent(event, activityName)
 
-        updateNotification(activityName)
+        FileLogger.i("Service updateNotification(activityName=$activityName)")
+        notificationProvider.updateNotification(activityName)
 
         if (lastActivity.activityType != DetectedActivity.STILL) {
             if (lastActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
@@ -129,7 +129,6 @@ class InVehicleForegroundService : Service() {
         FileLogger.i("Service stopForeground(serviceId=${this.hashCode()}))")
         stopLocationUpdates()
         stopForeground(STOP_FOREGROUND_REMOVE)
-        notificationProvider.removeNotification()
         stopSelf()
         isServiceInForeground = false
     }
@@ -155,13 +154,6 @@ class InVehicleForegroundService : Service() {
         ).addOnFailureListener {
             FileLogger.e("Failed to request location updates: ${it.message}")
         }
-    }
-
-    fun updateNotification(activityName: String) {
-        FileLogger.i("Service updateNotification(activityName=$activityName)")
-        val notification = notificationProvider.createNotification(activityName)
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager?.notify(NOTIFICATION_ID, notification)
     }
 
     @OptIn(DelicateCoroutinesApi::class)
@@ -207,6 +199,7 @@ class InVehicleForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        notificationProvider.destroyNotification()
         FileLogger.i("Service onDestroy(UID=${applicationContext.applicationInfo.uid}, serviceId=${this.hashCode()}))")
 //        persistingStorage.storeEvent("Service destroyed (UID=${applicationContext.applicationInfo.uid})")
     }
