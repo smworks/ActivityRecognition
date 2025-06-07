@@ -53,7 +53,7 @@ class InVehicleForegroundService : Service() {
         super.onCreate()
         FileLogger.i("Service onCreate(UID=${applicationContext.applicationInfo.uid}, serviceId=${this.hashCode()})")
         persistingStorage = PersistingStorage(applicationContext)
-        persistingStorage.storeEvent("Service created (UID=${applicationContext.applicationInfo.uid})")
+//        persistingStorage.storeEvent("Service created (UID=${applicationContext.applicationInfo.uid})")
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
         notificationProvider = NotificationProvider(applicationContext)
         notificationProvider.createNotificationChannel()
@@ -99,6 +99,7 @@ class InVehicleForegroundService : Service() {
 
     @OptIn(DelicateCoroutinesApi::class)
     private suspend fun handleActivityTransition(recognizedTransitions: List<ActivityRecognitionEvent>) {
+        val activityBefore = persistingStorage.getCurrentActivity()
         val lastActivity = recognizedTransitions.lastOrNull()
         if (lastActivity == null) {
             FileLogger.w("No activity transition events found!!!")
@@ -116,15 +117,15 @@ class InVehicleForegroundService : Service() {
             if (lastActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
                 startLocationUpdates()
             } else if (lastActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_EXIT) {
-                stopLocationUpdates()
+                stopLocationUpdates(activityBefore)
             }
         } else if (lastActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
-            stopLocationUpdates()
+            stopLocationUpdates(activityBefore)
             stopForeground()
         }
     }
 
-    private suspend fun stopForeground() {
+    private fun stopForeground() {
         FileLogger.i("Service stopForeground(serviceId=${this.hashCode()}))")
         stopLocationUpdates()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -185,8 +186,8 @@ class InVehicleForegroundService : Service() {
     }
 
 
-    private suspend fun stopLocationUpdates() {
-        saveRoute()
+    private fun stopLocationUpdates(activityBefore: String = "") {
+        saveRoute(activityBefore)
         fusedLocationClient.removeLocationUpdates(locationCallback).addOnFailureListener {
             FileLogger.e("Failed to remove location updates: ${it.message}")
         }
@@ -194,10 +195,9 @@ class InVehicleForegroundService : Service() {
     }
 
     @OptIn(DelicateCoroutinesApi::class)
-    private suspend fun saveRoute() {
+    private fun saveRoute(routeActivity: String) {
         if (routePoints.isNotEmpty()) {
-            val currentActivity = persistingStorage.getCurrentActivity()
-            persistingStorage.saveRouteToDatabase(ArrayList(routePoints), currentActivity)
+            persistingStorage.saveRouteToDatabase(ArrayList(routePoints), routeActivity)
         }
     }
 
@@ -208,6 +208,6 @@ class InVehicleForegroundService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         FileLogger.i("Service onDestroy(UID=${applicationContext.applicationInfo.uid}, serviceId=${this.hashCode()}))")
-        persistingStorage.storeEvent("Service destroyed (UID=${applicationContext.applicationInfo.uid})")
+//        persistingStorage.storeEvent("Service destroyed (UID=${applicationContext.applicationInfo.uid})")
     }
 }
