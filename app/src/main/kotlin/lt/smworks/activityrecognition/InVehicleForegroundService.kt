@@ -99,27 +99,30 @@ class InVehicleForegroundService : Service() {
     @OptIn(DelicateCoroutinesApi::class)
     private suspend fun handleActivityTransition(recognizedTransitions: List<ActivityRecognitionEvent>) {
         val activityBefore = persistingStorage.getCurrentActivity()
-        val lastActivity = recognizedTransitions.lastOrNull()
-        if (lastActivity == null) {
+        val currentActivity = recognizedTransitions.lastOrNull()
+        if (currentActivity == null) {
             FileLogger.w("No activity transition events found!!!")
             return
         }
-        val activityName = lastActivity.activityType.getActivityName()
-        val transitionName = lastActivity.transitionType.getTransitionName()
-        FileLogger.i("Service handleActivityTransition($activityName, $transitionName, serviceId=${this.hashCode()}))")
-        val event = "$activityName - $transitionName"
-        persistingStorage.storeEvent(event, activityName)
+        val currentActivityName = currentActivity.activityType.getActivityName()
+        val transitionName = currentActivity.transitionType.getTransitionName()
+        FileLogger.i("Service handleActivityTransition($currentActivityName, $transitionName, serviceId=${this.hashCode()}))")
+        val event = "$currentActivityName - $transitionName"
+        persistingStorage.storeEvent(event, currentActivityName)
 
-        FileLogger.i("Service updateNotification(activityName=$activityName)")
-        notificationProvider.updateNotification(activityName)
+        FileLogger.i("Service updateNotification(currentActivityName=$currentActivityName)")
+        notificationProvider.updateNotification(currentActivityName)
 
-        if (lastActivity.activityType != DetectedActivity.STILL) {
-            if (lastActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
+        if (currentActivity.activityType != DetectedActivity.STILL) {
+            if (currentActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
+                if (currentActivityName != activityBefore) {
+                    saveRoute(activityBefore)
+                }
                 startLocationUpdates()
-            } else if (lastActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_EXIT) {
+            } else if (currentActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_EXIT) {
                 stopLocationUpdates(activityBefore)
             }
-        } else if (lastActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
+        } else if (currentActivity.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER) {
             stopLocationUpdates(activityBefore)
             stopForeground()
         }
@@ -178,18 +181,18 @@ class InVehicleForegroundService : Service() {
     }
 
 
+    @OptIn(DelicateCoroutinesApi::class)
     private fun stopLocationUpdates(activityBefore: String = "") {
-        saveRoute(activityBefore)
         fusedLocationClient.removeLocationUpdates(locationCallback).addOnFailureListener {
             FileLogger.e("Failed to remove location updates: ${it.message}")
         }
-        routePoints.clear()
+        saveRoute(activityBefore)
     }
 
-    @OptIn(DelicateCoroutinesApi::class)
     private fun saveRoute(routeActivity: String) {
         if (routePoints.isNotEmpty()) {
             persistingStorage.saveRouteToDatabase(ArrayList(routePoints), routeActivity)
+            routePoints.clear()
         }
     }
 

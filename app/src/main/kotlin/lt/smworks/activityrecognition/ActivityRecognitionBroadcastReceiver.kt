@@ -36,7 +36,7 @@ class ActivityRecognitionBroadcastReceiver : BroadcastReceiver() {
 
     private fun handleActivityTransition(intent: Intent, context: Context) {
         val result = ActivityTransitionResult.extractResult(intent)
-        FileLogger.d("Received Activity Transition broadcast: ${result?.transitionEvents.toString()}}")
+        FileLogger.d("handleActivityTransition(${result?.toTransitionEvents()})")
         if (result == null) {
             return
         }
@@ -61,5 +61,9 @@ class ActivityRecognitionBroadcastReceiver : BroadcastReceiver() {
     private fun handleActivity(activityType: Int, confidence: Int) {
         val activityName = activityType.getActivityName()
         println("Service handleActivity($activityName, confidence: $confidence)")
+    }
+
+    private fun ActivityTransitionResult.toTransitionEvents(): String {
+        return transitionEvents.joinToString(separator = ",") { event -> "${event.activityType.getActivityName()}->${event.transitionType.getTransitionName()}"  }
     }
 } 
