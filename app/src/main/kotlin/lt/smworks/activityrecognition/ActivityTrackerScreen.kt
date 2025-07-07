@@ -19,9 +19,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
@@ -45,9 +47,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.app.ActivityCompat
 import androidx.core.net.toUri
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -63,6 +68,8 @@ import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import kotlin.collections.component1
+import kotlin.collections.component2
 import kotlin.collections.contains
 
 @SuppressLint("CompositionLocalNaming")
@@ -187,85 +194,65 @@ private fun Events() {
         return
     }
 
-    EventList(activityEvents)
-}
-
-
-@Composable
-private fun EventList(activityEvents: List<Event>) {
     val groupedEvents = activityEvents.groupBy { it.timestamp.toDate() }
-    val listState = rememberLazyListState()
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .lazyListScrollBar(listState),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            if (activityEvents.isEmpty()) {
-                item {
-                    CenteredContent {
-                        Text("No activity events yet.", modifier = Modifier.padding(16.dp))
-                    }
+    TextItemList {
+        if (activityEvents.isEmpty()) {
+            item {
+                CenteredContent {
+                    Text("No activity events yet.", modifier = Modifier.padding(16.dp))
                 }
-            } else {
-                groupedEvents.forEach { (date, eventsOnDate) ->
-                    item {
-                        Text(
-                            text = date,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
-                        )
-                    }
-                    items(eventsOnDate) { event ->
-                        Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                            Text(
-                                text = event.timestamp.toTime() + " - " + event.value,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    }
+            }
+        } else {
+            groupedEvents.forEach { (date, eventsOnDate) ->
+                item {
+                    Text(
+                        text = date,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+                    )
+                }
+                items(eventsOnDate) { event ->
+                    TextListItem(event.timestamp.toTime() + " - " + event.value)
                 }
             }
         }
     }
 }
-//
-//@Composable
-//private fun EventList(activityEvents: List<Event>) {
-//    val listState = rememberLazyListState()
-//    Box(modifier = Modifier.fillMaxSize()) {
-//        LazyColumn(
-//            state = listState,
-//            modifier = Modifier
-//                .fillMaxSize()
-//                .lazyListScrollBar(listState),
-//            verticalArrangement = Arrangement.spacedBy(8.dp)
-//        ) {
-//            items(activityEvents) { event ->
-//                Card(
-//                    modifier = Modifier.fillMaxWidth()
-//                ) {
-//                    Text(
-//                        text = event.timestamp.timestampToDate() + " - " + event.value,
-//                        fontSize = 11.sp,
-//                        modifier = Modifier.padding(16.dp)
-//                    )
-//                }
-//            }
-//            if (activityEvents.isEmpty()) {
-//                item {
-//                    CenteredContent {
-//                        Text("No activity events yet.", modifier = Modifier.padding(16.dp))
-//                    }
-//                }
-//            }
-//        }
-//    }
-//}
+
+@Composable
+fun TextItemList(content: LazyListScope.() -> Unit) {
+    val listState = rememberLazyListState()
+    LazyColumn(
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .lazyListScrollBar(listState),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun TextListItem(text: String, isSelected: Boolean = false, onClick: () -> Unit = {}) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+    ) {
+        Text(
+            text = text,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(16.dp),
+            color = if (isSelected)
+                MaterialTheme.colorScheme.primary
+            else
+                MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
 
 @Composable
 private fun Logs() {
@@ -286,7 +273,7 @@ private fun Logs() {
 }
 
 @Composable
-fun ColumnScope.Routes() {
+fun Routes() {
     val storage = Storage.current
     val routesWithPoints by storage?.getAllRoutesWithPoints()?.collectAsState(initial = null)
         ?: remember { mutableStateOf(emptyList()) }
@@ -305,56 +292,63 @@ fun ColumnScope.Routes() {
         return
     }
 
-    RouteContent(routesWithPoints)
-}
+    var selectedRouteWithPoints by remember { mutableStateOf<RouteWithPoints?>(null) }
 
-@Composable
-private fun ColumnScope.RouteContent(routesWithPoints: List<RouteWithPoints>?) {
-    var selectedRouteWithPoints by remember { mutableStateOf(routesWithPoints?.firstOrNull()) }
-    LaunchedEffect(routesWithPoints) {
-        if (selectedRouteWithPoints == null || routesWithPoints?.contains(selectedRouteWithPoints) == false) {
-            selectedRouteWithPoints = routesWithPoints?.firstOrNull()
-        }
-    }
-
-    val latLngList = selectedRouteWithPoints?.points?.map { LatLng(it.latitude, it.longitude) }
-
-    val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(latLngList?.firstOrNull() ?: LatLng(0.0, 0.0), 15f)
-    }
-
-    LaunchedEffect(latLngList) {
-        if (latLngList?.isNotEmpty() == true) {
-            val boundsBuilder = LatLngBounds.builder()
-            for (latLng in latLngList) {
-                boundsBuilder.include(latLng)
-            }
-            cameraPositionState.animate(
-                CameraUpdateFactory.newLatLngBounds(
-                    boundsBuilder.build(), 50
-                )
-            )
-        }
-    }
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxWidth()
-            .weight(0.3f)
-    ) {
+    TextItemList {
         items(routesWithPoints ?: emptyList()) { routeItem ->
-            Text(
-                text = "${routeItem.route.activityName} - ${routeItem.route.timestamp.toTime()}",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { selectedRouteWithPoints = routeItem }
-                    .padding(8.dp),
-                color = if (selectedRouteWithPoints == routeItem) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-            )
+            TextListItem(
+                "${routeItem.route.activityName} - ${routeItem.route.timestamp.toTime()}",
+                isSelected = routeItem == selectedRouteWithPoints
+            ) {
+                selectedRouteWithPoints = routeItem
+            }
         }
     }
 
-    Map(cameraPositionState, latLngList)
+    if (selectedRouteWithPoints != null) {
+        Dialog(
+            onDismissRequest = { selectedRouteWithPoints = null },
+            properties = DialogProperties(usePlatformDefaultWidth = true)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                var selectedRouteWithPoints by remember { mutableStateOf(routesWithPoints?.firstOrNull()) }
+                LaunchedEffect(routesWithPoints) {
+                    if (selectedRouteWithPoints == null || routesWithPoints?.contains(
+                            selectedRouteWithPoints
+                        ) == false
+                    ) {
+                        selectedRouteWithPoints = routesWithPoints?.firstOrNull()
+                    }
+                }
+
+                val latLngList =
+                    selectedRouteWithPoints?.points?.map { LatLng(it.latitude, it.longitude) }
+
+                val cameraPositionState = rememberCameraPositionState {
+                    position = CameraPosition.fromLatLngZoom(
+                        latLngList?.firstOrNull() ?: LatLng(0.0, 0.0),
+                        15f
+                    )
+                }
+
+                LaunchedEffect(latLngList) {
+                    if (latLngList?.isNotEmpty() == true) {
+                        val boundsBuilder = LatLngBounds.builder()
+                        for (latLng in latLngList) {
+                            boundsBuilder.include(latLng)
+                        }
+                        cameraPositionState.animate(
+                            CameraUpdateFactory.newLatLngBounds(
+                                boundsBuilder.build(), 50
+                            )
+                        )
+                    }
+                }
+
+                Map(cameraPositionState, latLngList)
+            }
+        }
+    }
 }
 
 @Composable
