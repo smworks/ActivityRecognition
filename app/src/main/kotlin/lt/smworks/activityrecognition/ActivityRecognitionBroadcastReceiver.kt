@@ -1,6 +1,6 @@
 package lt.smworks.activityrecognition
 
-import ActivityRecognitionEvent
+import lt.smworks.activityrecognition.ActivityRecognitionEvent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent

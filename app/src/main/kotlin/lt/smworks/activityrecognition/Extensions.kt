@@ -2,7 +2,7 @@
 
 package lt.smworks.activityrecognition
 
-import ActivityRecognitionEvent
+import lt.smworks.activityrecognition.ActivityRecognitionEvent
 import android.Manifest
 import android.content.Intent
 import android.os.Build

@@ -1,6 +1,6 @@
 package lt.smworks.activityrecognition
 
-import ActivityRecognitionEvent
+import lt.smworks.activityrecognition.ActivityRecognitionEvent
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Service

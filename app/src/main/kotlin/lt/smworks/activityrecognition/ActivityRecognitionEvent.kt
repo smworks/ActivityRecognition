@@ -1,3 +1,5 @@
+package lt.smworks.activityrecognition
+
 import java.io.Serializable
 
 data class ActivityRecognitionEvent(
