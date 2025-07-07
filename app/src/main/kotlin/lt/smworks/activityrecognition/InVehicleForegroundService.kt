@@ -2,6 +2,7 @@ package lt.smworks.activityrecognition
 
 import ActivityRecognitionEvent
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -68,6 +69,7 @@ class InVehicleForegroundService : Service() {
 
     }
 
+    @SuppressLint("MissingPermission")
     @OptIn(DelicateCoroutinesApi::class)
     @RequiresPermission(Manifest.permission.ACTIVITY_RECOGNITION)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -96,6 +98,7 @@ class InVehicleForegroundService : Service() {
     }
 
 
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     @OptIn(DelicateCoroutinesApi::class)
     private suspend fun handleActivityTransition(recognizedTransitions: List<ActivityRecognitionEvent>) {
         val activityBefore = persistingStorage.getCurrentActivity()
@@ -136,6 +139,7 @@ class InVehicleForegroundService : Service() {
         isServiceInForeground = false
     }
 
+    @RequiresPermission(anyOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun startLocationUpdates() {
         FileLogger.i("Service startLocationUpdates()")
         val locationRequest = LocationRequest.Builder(1000).setMinUpdateIntervalMillis(100)

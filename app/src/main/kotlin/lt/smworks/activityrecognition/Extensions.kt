@@ -182,7 +182,7 @@ fun Modifier.scrollBar(state: ScrollState, scrollbarWidth: Dp = 6.dp, color: Col
 
 fun Long.timestampToDate(): String {
     val date = Date(this)
-    val format = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    val format = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     return format.format(date)
 }
 
