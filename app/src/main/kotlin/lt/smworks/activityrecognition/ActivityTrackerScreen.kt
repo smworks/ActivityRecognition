@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -238,7 +239,6 @@ private fun TextListItem(text: String, isSelected: Boolean = false, onClick: () 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
             .clip(RoundedCornerShape(10.dp))
             .clickable { onClick() }
     ) {
@@ -308,9 +308,9 @@ fun Routes() {
     if (selectedRouteWithPoints != null) {
         Dialog(
             onDismissRequest = { selectedRouteWithPoints = null },
-            properties = DialogProperties(usePlatformDefaultWidth = true)
+            properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.systemBarsPadding().fillMaxSize()) {
                 var selectedRouteWithPoints by remember { mutableStateOf(routesWithPoints?.firstOrNull()) }
                 LaunchedEffect(routesWithPoints) {
                     if (selectedRouteWithPoints == null || routesWithPoints?.contains(
