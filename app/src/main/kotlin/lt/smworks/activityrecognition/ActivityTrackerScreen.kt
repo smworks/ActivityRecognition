@@ -190,38 +190,82 @@ private fun Events() {
     EventList(activityEvents)
 }
 
+
 @Composable
 private fun EventList(activityEvents: List<Event>) {
+    val groupedEvents = activityEvents.groupBy { it.timestamp.toDate() }
     val listState = rememberLazyListState()
+
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .lazyListScrollBar(listState),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            items(activityEvents) { event ->
-                Card(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = event.timestamp.timestampToDate() + " - " + event.value,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            }
             if (activityEvents.isEmpty()) {
                 item {
                     CenteredContent {
                         Text("No activity events yet.", modifier = Modifier.padding(16.dp))
                     }
                 }
+            } else {
+                groupedEvents.forEach { (date, eventsOnDate) ->
+                    item {
+                        Text(
+                            text = date,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+                        )
+                    }
+                    items(eventsOnDate) { event ->
+                        Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            Text(
+                                text = event.timestamp.toTime() + " - " + event.value,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
+//
+//@Composable
+//private fun EventList(activityEvents: List<Event>) {
+//    val listState = rememberLazyListState()
+//    Box(modifier = Modifier.fillMaxSize()) {
+//        LazyColumn(
+//            state = listState,
+//            modifier = Modifier
+//                .fillMaxSize()
+//                .lazyListScrollBar(listState),
+//            verticalArrangement = Arrangement.spacedBy(8.dp)
+//        ) {
+//            items(activityEvents) { event ->
+//                Card(
+//                    modifier = Modifier.fillMaxWidth()
+//                ) {
+//                    Text(
+//                        text = event.timestamp.timestampToDate() + " - " + event.value,
+//                        fontSize = 11.sp,
+//                        modifier = Modifier.padding(16.dp)
+//                    )
+//                }
+//            }
+//            if (activityEvents.isEmpty()) {
+//                item {
+//                    CenteredContent {
+//                        Text("No activity events yet.", modifier = Modifier.padding(16.dp))
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
 
 @Composable
 private fun Logs() {
@@ -300,7 +344,7 @@ private fun ColumnScope.RouteContent(routesWithPoints: List<RouteWithPoints>?) {
     ) {
         items(routesWithPoints ?: emptyList()) { routeItem ->
             Text(
-                text = "${routeItem.route.activityName} - ${routeItem.route.timestamp.timestampToDate()}",
+                text = "${routeItem.route.activityName} - ${routeItem.route.timestamp.toTime()}",
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { selectedRouteWithPoints = routeItem }

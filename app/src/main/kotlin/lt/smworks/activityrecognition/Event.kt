@@ -11,6 +11,6 @@ data class Event(
     val activity: String?
 ) {
     override fun toString(): String {
-        return "${timestamp.timestampToDate()}: $value"
+        return "${timestamp.toTime()}: $value"
     }
 }
