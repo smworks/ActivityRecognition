@@ -10,15 +10,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -51,8 +53,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.app.ActivityCompat
 import androidx.core.net.toUri
@@ -60,7 +62,6 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
-import com.google.maps.android.compose.CameraPositionState
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
@@ -69,9 +70,6 @@ import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import kotlin.collections.component1
-import kotlin.collections.component2
-import kotlin.collections.contains
 
 @SuppressLint("CompositionLocalNaming")
 val Storage = compositionLocalOf<PersistingStorage?> { null }
@@ -310,7 +308,11 @@ fun Routes() {
             onDismissRequest = { selectedRouteWithPoints = null },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            Column(modifier = Modifier.systemBarsPadding().fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .fillMaxSize()
+            ) {
                 var selectedRouteWithPoints by remember { mutableStateOf(routesWithPoints?.firstOrNull()) }
                 LaunchedEffect(routesWithPoints) {
                     if (selectedRouteWithPoints == null || routesWithPoints?.contains(
@@ -345,27 +347,17 @@ fun Routes() {
                     }
                 }
 
-                Map(cameraPositionState, latLngList)
+                GoogleMap(
+                    modifier = Modifier.fillMaxSize().systemBarsPadding(),
+                    cameraPositionState = cameraPositionState,
+                    properties = MapProperties(isMyLocationEnabled = true),
+                    uiSettings = MapUiSettings(zoomControlsEnabled = true, myLocationButtonEnabled = true)
+                ) {
+                    if (latLngList?.isNotEmpty() == true) {
+                        Polyline(points = latLngList)
+                    }
+                }
             }
-        }
-    }
-}
-
-@Composable
-private fun ColumnScope.Map(
-    cameraPositionState: CameraPositionState,
-    latLngList: List<LatLng>?
-) {
-    GoogleMap(
-        modifier = Modifier
-            .fillMaxWidth()
-            .weight(0.7f),
-        cameraPositionState = cameraPositionState,
-        properties = MapProperties(isMyLocationEnabled = true),
-        uiSettings = MapUiSettings(zoomControlsEnabled = true, myLocationButtonEnabled = true)
-    ) {
-        if (latLngList?.isNotEmpty() == true) {
-            Polyline(points = latLngList)
         }
     }
 }
