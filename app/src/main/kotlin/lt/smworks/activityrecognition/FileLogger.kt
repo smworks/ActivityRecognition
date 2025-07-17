@@ -12,6 +12,7 @@ object FileLogger {
 
     private const val LOG_FILE_NAME = "log.txt"
     private const val LOGCAT_TAG = "ActivityRecognition" // Hardcoded tag for Logcat
+    private const val MAX_LINES = 500
     private var applicationContext: Context? = null
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
 
@@ -24,7 +25,27 @@ object FileLogger {
             try {
                 val logFile = File(ctx.filesDir, LOG_FILE_NAME)
                 val logMessage = "${dateFormat.format(Date())} - $message\n"
-                logFile.appendText(logMessage)
+                
+                // Read existing log content
+                val existingContent = if (logFile.exists()) {
+                    logFile.readText()
+                } else {
+                    ""
+                }
+                
+                // Add new message
+                val newContent = existingContent + logMessage
+                
+                // Keep only the last MAX_LINES lines
+                val lines = newContent.split("\n")
+                val trimmedContent = if (lines.size > MAX_LINES) {
+                    lines.takeLast(MAX_LINES).joinToString("\n")
+                } else {
+                    newContent
+                }
+                
+                // Write back to file
+                logFile.writeText(trimmedContent)
             } catch (e: IOException) {
                 Log.e(LOGCAT_TAG, "Error writing to log file", e)
             }
