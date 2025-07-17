@@ -313,15 +313,6 @@ fun Routes() {
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .fillMaxSize()
             ) {
-                var selectedRouteWithPoints by remember { mutableStateOf(routesWithPoints?.firstOrNull()) }
-                LaunchedEffect(routesWithPoints) {
-                    if (selectedRouteWithPoints == null || routesWithPoints?.contains(
-                            selectedRouteWithPoints
-                        ) == false
-                    ) {
-                        selectedRouteWithPoints = routesWithPoints?.firstOrNull()
-                    }
-                }
 
                 val latLngList =
                     selectedRouteWithPoints?.points?.map { LatLng(it.latitude, it.longitude) }
