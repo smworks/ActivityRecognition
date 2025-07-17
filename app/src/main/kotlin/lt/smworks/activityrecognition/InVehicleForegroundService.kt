@@ -1,6 +1,5 @@
 package lt.smworks.activityrecognition
 
-import lt.smworks.activityrecognition.ActivityRecognitionEvent
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Service
@@ -31,6 +30,7 @@ class InVehicleForegroundService : Service() {
     private lateinit var locationCallback: LocationCallback
     private lateinit var persistingStorage: PersistingStorage
     private lateinit var notificationProvider: NotificationProvider
+    private lateinit var sharedPreferencesProvider: SharedPreferencesProvider
     private var routePoints = mutableListOf<LatLng>()
 
     companion object {
@@ -53,7 +53,7 @@ class InVehicleForegroundService : Service() {
         super.onCreate()
         FileLogger.i("Service onCreate(UID=${applicationContext.applicationInfo.uid}, serviceId=${this.hashCode()})")
         persistingStorage = PersistingStorage(applicationContext)
-//        persistingStorage.storeEvent("Service created (UID=${applicationContext.applicationInfo.uid})")
+        sharedPreferencesProvider = SharedPreferencesProvider(applicationContext)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
         notificationProvider = NotificationProvider(applicationContext)
         notificationProvider.createNotificationChannel()
@@ -77,9 +77,12 @@ class InVehicleForegroundService : Service() {
             startForeground()
             if (!isActivityRecognitionActive) {
                 isActivityRecognitionActive = true
-                ActivityRecognitionProvider(applicationContext).apply {
-                    startActivityTransitionRecognitionWithBroadcast()
-                    startActivityUpdatesWithBroadcast()
+                if (!sharedPreferencesProvider.isActivityTrackingEnabled) {
+                    ActivityRecognitionProvider(applicationContext).apply {
+                        startActivityTransitionRecognitionWithBroadcast()
+                        startActivityUpdatesWithBroadcast()
+                    }
+                    sharedPreferencesProvider.isActivityTrackingEnabled = true
                 }
             }
             when (intent?.action) {
